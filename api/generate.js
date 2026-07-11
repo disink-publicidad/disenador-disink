@@ -50,6 +50,7 @@ CONTENIDO EXACTO, letra por letra (no inventar datos, no texto de relleno, no lo
 - Negocio: ${d.negocio || "—"} (giro: ${d.giro || "—"})
 - Teléfono: ${d.tel || "—"}
 - Otros datos: ${d.extra || "—"}
+- Servicios / información adicional (inclúyela en lista compacta o en el reverso si es frente y vuelta): ${d.servicios || "—"}
 PALETA: ${d.paleta}.
 ${d.logoNote || ""} ${d.refNote || ""}
 REGLAS: tipografía legible mínimo equivalente a 7 pt, jerarquía nombre > puesto > contacto, composición equilibrada. NO agregues texto que no esté en la lista. Verifica la ortografía exacta de cada dato.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`,
@@ -156,7 +157,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Falta configurar OPENAI_API_KEY en Vercel" });
   }
 
-  const { product, options = {}, data = {}, logo = null, refs = [] } = req.body || {};
+  const { product, options = {}, data = {}, logo = null, logo2 = null, refs = [] } = req.body || {};
   const builder = PROMPTS[product];
   if (!builder) {
     return res.status(400).json({ error: "Producto inválido" });
@@ -184,7 +185,9 @@ export default async function handler(req, res) {
   const images = [];
   const notas = [];
   const logoBlob = dataUrlToBlob(logo);
-  if (logoBlob) { images.push(logoBlob); notas.push("la imagen 1 es el LOGOTIPO REAL del cliente: intégralo tal cual, sin redibujarlo"); }
+  if (logoBlob) { images.push(logoBlob); notas.push("la imagen 1 es el LOGOTIPO REAL del cliente para el FRENTE: intégralo tal cual, sin redibujarlo"); }
+  const logo2Blob = dataUrlToBlob(logo2);
+  if (logo2Blob) { images.push(logo2Blob); notas.push(`la imagen ${images.length} es el logotipo para el REVERSO: úsalo solo en el reverso, tal cual, sin redibujarlo`); }
   (Array.isArray(refs) ? refs.slice(0, 2) : []).forEach(u => {
     const b = dataUrlToBlob(u);
     if (b) { images.push(b); notas.push(`la imagen ${images.length} es una REFERENCIA de estilo: úsala solo como inspiración visual`); }
