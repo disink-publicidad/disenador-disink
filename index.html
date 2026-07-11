@@ -184,7 +184,7 @@ footer b{color:var(--magenta)}
   <!-- PASO 1 -->
   <section class="pane visible" id="pane1">
     <div class="grid" id="prodGrid"></div>
-    <div class="btns"><button class="btn primary" id="to2" disabled>Continuar →</button></div>
+    <p class="hint" style="margin-top:18px">Elige un servicio para comenzar 👆</p>
   </section>
 
   <!-- PASO 2 -->
@@ -279,7 +279,9 @@ const PRODUCTS = {
       {id:"giro", label:"¿A qué se dedica tu negocio? *", type:"text", ph:"Ej. Salón de belleza y barbería"},
       {id:"tel", label:"Teléfono / WhatsApp *", type:"text", ph:"Ej. 555 123 4567"},
       {id:"extra", label:"Correo, redes o dirección", type:"text", ph:"Ej. @salonbella · Av. Juárez 12"},
-      {id:"logo", label:"Sube tu logo (opcional)", type:"file"}
+      {id:"servicios", label:"¿Qué más debe decir tu tarjeta? (servicios o información extra)", type:"textarea", ph:"Ej. Repartimos paquetes, dinero, mandados, trámites, compras…"},
+      {id:"logo", label:"Sube tu logo (opcional)", type:"file"},
+      {id:"logo2", label:"Logo para el reverso (opcional, solo frente y vuelta)", type:"file"}
     ]
   },
 
@@ -369,6 +371,9 @@ const PRODUCTS = {
 let state = { product:null, options:{}, data:{}, logoDataUrl:null, refDataUrls:[],
               colorCount:null, colors:[], summary:[], despuntes:{} };
 
+/* Solo reconstruye opciones si cambió el producto (no borra lo ya elegido) */
+let builtProduct = null;
+
 const grid = document.getElementById("prodGrid");
 Object.entries(PRODUCTS).forEach(([key,p])=>{
   const el = document.createElement("div");
@@ -378,16 +383,11 @@ Object.entries(PRODUCTS).forEach(([key,p])=>{
     document.querySelectorAll(".prod").forEach(x=>x.classList.remove("sel"));
     el.classList.add("sel");
     state.product = key;
-    document.getElementById("to2").disabled = false;
+    if(builtProduct !== key){ buildOptions(); builtProduct = key; }
+    goStep(2); /* brinca directo al paso 2 */
   };
   grid.appendChild(el);
 });
-/* Solo reconstruye opciones si cambió el producto (no borra lo ya elegido) */
-let builtProduct = null;
-document.getElementById("to2").onclick = ()=>{
-  if(builtProduct !== state.product){ buildOptions(); builtProduct = state.product; }
-  goStep(2);
-};
 
 let maxStep = 1;
 function goStep(n){
@@ -721,16 +721,18 @@ function buildForm(){
     }
     zone.appendChild(div);
   });
-  const fileInput = document.getElementById("f_logo");
-  if(fileInput){
-    fileInput.onchange = e=>{
-      const file = e.target.files[0];
-      if(!file) { state.logoDataUrl=null; return; }
-      const r = new FileReader();
-      r.onload = ev=> shrinkImage(ev.target.result, 512, "image/png").then(s=> state.logoDataUrl = s);
-      r.readAsDataURL(file);
-    };
-  }
+  [["f_logo","logoDataUrl"],["f_logo2","logo2DataUrl"]].forEach(([fid,prop])=>{
+    const fileInput = document.getElementById(fid);
+    if(fileInput){
+      fileInput.onchange = e=>{
+        const file = e.target.files[0];
+        if(!file) { state[prop]=null; return; }
+        const r = new FileReader();
+        r.onload = ev=> shrinkImage(ev.target.result, 512, "image/png").then(s=> state[prop] = s);
+        r.readAsDataURL(file);
+      };
+    }
+  });
 }
 
 function collectData(){
@@ -818,7 +820,8 @@ function renderSummary(){
     ...(state.product==="lonas" && state.data.pegue ? [["Pegue", "⚠️ "+state.data.pegue]] : []),
     ["Colores", colorTxt],
     ["Referencias", nr ? nr+" imagen(es) ✓" : "No"],
-    ["Logo", state.logoDataUrl ? "Sí, subido ✓" : "Pendiente"]
+    ["Logo", state.logoDataUrl ? "Sí, subido ✓" : "Pendiente"],
+    ...(state.logo2DataUrl ? [["Logo reverso", "Sí, subido ✓"]] : [])
   ];
   ul.innerHTML = rows.map(([k,v])=>`<li><b>${k}:</b> ${v}</li>`).join("");
 }
@@ -879,6 +882,7 @@ function renderPreview(){
         </div>
         <div>
           <div style="font-size:.82rem;font-weight:700;color:${c.acc}">${esc(d.negocio)||""}</div>
+          ${d.servicios? `<div style="font-size:.58rem;opacity:.8;margin-top:2px">${esc(d.servicios.split(/\n|,/).map(s=>s.trim()).filter(Boolean).slice(0,3).join(" · "))}</div>`:""}
           <div style="font-size:.66rem;opacity:.85;margin-top:4px">📞 ${esc(d.tel)||"—"}${d.extra? " · "+esc(d.extra):""}</div>
           <div style="height:3px;width:60px;background:${c.acc};margin-top:8px;border-radius:2px"></div>
         </div>
@@ -889,7 +893,7 @@ function renderPreview(){
       html += `<div><div class="side-label">Reverso · acabado mate</div>
         <div class="mock card" style="background:${c.bg};color:${c.fg};font-family:${c.font};display:grid;place-items:center;border-radius:${br}">
           <div style="text-align:center">
-            ${state.logoDataUrl? `<img class="m-logo" src="${state.logoDataUrl}" style="height:70px;margin-bottom:10px"><br>`:""}
+            ${(state.logo2DataUrl||state.logoDataUrl)? `<img class="m-logo" src="${state.logo2DataUrl||state.logoDataUrl}" style="height:70px;margin-bottom:10px"><br>`:""}
             <div style="font-size:1.3rem;font-weight:800;color:${c.acc}">${esc(d.negocio)||"Tu Negocio"}</div>
             <div style="font-size:.62rem;opacity:.7;margin-top:4px;letter-spacing:2px;text-transform:uppercase">${esc(d.giro)||""}</div>
           </div>
@@ -1003,6 +1007,7 @@ async function generateAI(){
       body: JSON.stringify({
         product: state.product, options: state.options, data: state.data,
         logo: state.logoDataUrl || null,
+        logo2: state.logo2DataUrl || null,
         refs: (state.refDataUrls||[]).slice(0,2)
       })
     });
@@ -1067,17 +1072,17 @@ function sendWhatsApp(){
   const extras = [];
   if(state.product==="tarjetas" && despunteDesc().n) extras.push("Despuntes: "+despunteDesc().text);
   if(state.logoDataUrl) extras.push("Tengo logo, te lo mando por aquí");
+  if(state.logo2DataUrl) extras.push("Tengo un segundo logo para el reverso");
   if((state.refDataUrls||[]).length) extras.push(`Tengo ${state.refDataUrls.length} imagen(es) de referencia, te las mando por aquí`);
   const msg = `¡Hola Disink Control! Quiero cotizar: *${p.name}*\nOpciones: ${visibleOptions().map(([k,v])=>v).join(" · ")}\nColores: ${colorTxt}\n${datos}${extras.length? "\n"+extras.join("\n"):""}`;
   window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, "_blank");
 }
 
 function restart(){
-  state = { product:null, options:{}, data:{}, logoDataUrl:null, refDataUrls:[], colorCount:null, colors:[], summary:[], despuntes:{} };
+  state = { product:null, options:{}, data:{}, logoDataUrl:null, logo2DataUrl:null, refDataUrls:[], colorCount:null, colors:[], summary:[], despuntes:{} };
   builtProduct = null;
   maxStep = 1;
   document.querySelectorAll(".prod").forEach(x=>x.classList.remove("sel"));
-  document.getElementById("to2").disabled = true;
   document.getElementById("refFile").value = "";
   document.getElementById("refThumbs").innerHTML = "";
   goStep(1);
