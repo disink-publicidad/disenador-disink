@@ -11,10 +11,11 @@ const MARCA_DE_AGUA = `
 MARCA DE AGUA OBLIGATORIA: superpón sobre TODO el diseño el texto "DISINK CONTROL · MUESTRA" repetido varias veces en diagonal, semitransparente, claramente visible. El diseño es una muestra no final.`;
 
 const PRESENTACION = `
-PRESENTACIÓN: entrega ÚNICAMENTE el diseño plano visto de frente ocupando todo el lienzo. SIN mockup fotográfico, sin manos, sin mesas, sin sombras de escritorio, sin marcos.`;
+PRESENTACIÓN: entrega ÚNICAMENTE el diseño plano visto de frente. SIN mockup fotográfico, sin manos, sin mesas, sin perspectiva 3D, sin sombras exageradas. Respeta estrictamente la orientación y proporción indicadas.`;
 
 const CALIDAD = `
-CALIDAD: nivel de estudio de diseño profesional premiado. Composición con retícula, jerarquía tipográfica impecable, espaciado consistente, alineaciones perfectas. Máximo 2 familias tipográficas.`;
+CALIDAD: nivel de estudio de diseño galardonado (estética tipo Behance). Composición con retícula, jerarquía tipográfica impecable, espaciado consistente, alineaciones perfectas, mucho espacio de respiro. Máximo 2 familias tipográficas.
+ORTOGRAFÍA CRÍTICA: transcribe cada texto indicado entre comillas « » EXACTAMENTE letra por letra, con sus acentos, mayúsculas y minúsculas. No corrijas, no traduzcas, no abrevies, no agregues ni cambies palabras. Verifica cada palabra dos veces antes de terminar: un solo error de ortografía arruina el trabajo.`;
 
 function styleGuide(s) {
   const g = {
@@ -34,26 +35,68 @@ function styleGuide(s) {
   return g[s] || "profesional y equilibrado";
 }
 
-// ---------- PROMPTS MAESTROS POR SERVICIO ----------
+// ============================================================
+// "DIRECTOR DE ARTE" — el truco del JSON, automatizado:
+// antes de generar la imagen, un modelo de visión (gpt-4o-mini)
+// mira el logo y las referencias, lee el brief y lo reescribe
+// como un prompt visual muchísimo más rico y detallado.
+// Puedes afinar sus instrucciones aquí:
+// ============================================================
+const DIRECTOR = `Actúa como director de arte senior de una imprenta profesional.
+Recibirás un BRIEF técnico y posiblemente imágenes (logotipos del cliente y referencias de estilo).
+TU TAREA: reescribe el brief como UN solo prompt de generación de imagen extraordinariamente detallado y visual (máximo 350 palabras): describe la composición exacta zona por zona, el fondo, texturas, estilo tipográfico, tamaños relativos de cada elemento, paleta con códigos de color, y elementos gráficos decorativos concretos. Estética de estudio de diseño premiado.
+REGLAS OBLIGATORIAS:
+- Conserva TAL CUAL, sin cambiar ni una letra ni un acento, todos los textos entre comillas « » (son datos reales del cliente) y mantenlos entre « ».
+- Conserva la orientación, proporción, medidas y esquinas indicadas en el brief.
+- Si hay imágenes de referencia, analiza su estilo (colores, composición, tipografía, ambiente) e incorpóralo al prompt.
+- Si hay logotipo, indica que se integre tal cual, sin redibujarlo.
+- NO agregues textos nuevos al diseño que no estén en el brief.
+Responde SOLO con el prompt final, sin explicaciones ni comentarios.`;
+
+async function directorDeArte(apiKey, brief, imgs) {
+  try {
+    const content = [{ type: "text", text: DIRECTOR + "\n\nBRIEF:\n" + brief }];
+    imgs.slice(0, 3).forEach(u => content.push({ type: "image_url", image_url: { url: u, detail: "low" } }));
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content }], max_tokens: 700 })
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const t = j.choices?.[0]?.message?.content?.trim();
+    return (t && t.length > 100) ? t : null;
+  } catch (e) { return null; }
+}
+
+// ============================================================
+// PROMPTS MAESTROS POR SERVICIO
+// >>> PARA EDITARLOS TÚ MISMO: cambia libremente el texto entre
+// las comillas invertidas (` `), pero NO borres ni modifiques
+// las partes que van entre ${ } — esas traen los datos del
+// cliente. Guarda, haz commit en GitHub y Vercel republica solo.
+// ============================================================
 const PROMPTS = {
-  tarjetas: (d, o) => `Diseña una TARJETA DE PRESENTACIÓN profesional lista para imprenta.
-FORMATO: 9 x 5 cm horizontal, 3 mm de sangrado por lado, 300 dpi, colores estilo CMYK, margen de seguridad de 4 mm (ningún texto ni logo pegado al borde).
-LADOS: ${o.lados || "1 lado"}. ${(o.lados || "").includes("vuelta")
-    ? "Diseña FRENTE y REVERSO en el mismo lienzo (frente a la izquierda, reverso a la derecha, separados). Frente: nombre y datos de contacto. Reverso: logotipo/nombre del negocio en grande sobre fondo de marca. ACABADO: laminado MATE (evita texturas brillantes en el diseño)."
-    : "Todo el contenido en un solo frente, bien jerarquizado."}
+  tarjetas: (d, o) => {
+    const dual = (o.lados || "").includes("vuelta");
+    return `Diseño gráfico editorial de una TARJETA DE PRESENTACIÓN premium lista para imprenta. Estilo vectorial plano, NO fotografía.
+COMPOSICIÓN DEL LIENZO: ${dual
+      ? "DOS tarjetas HORIZONTALES del mismo tamaño, lado a lado sobre un fondo gris muy claro y uniforme. IZQUIERDA = FRENTE, DERECHA = REVERSO."
+      : "UNA sola tarjeta HORIZONTAL, grande y centrada, sobre un fondo gris muy claro y uniforme."}
+PROPORCIÓN OBLIGATORIA de cada tarjeta: 9 de ancho x 5 de alto (formato horizontal 1.8:1). PROHIBIDO dibujar tarjetas verticales.
+ESQUINAS (despunte): ${d.despunte || "las 4 esquinas rectas"}. Dibuja EXACTAMENTE esas esquinas redondeadas y las demás rectas.
 ESTILO: ${o.estilo || "Moderno"} — ${styleGuide(o.estilo)}.
-ACABADO: ${(o.lados || "").includes("vuelta") ? "Mate (obligatorio en frente y vuelta)" : (o.acabado || "Mate")}.
-ESQUINAS (despunte): ${d.despunte || "las 4 esquinas rectas"}. Si hay esquinas redondeadas, dibuja la tarjeta con EXACTAMENTE esas esquinas redondeadas y las demás rectas.
-CONTENIDO EXACTO, letra por letra (no inventar datos, no texto de relleno, no lorem ipsum):
-- Nombre: ${d.nombre || "—"}
-- Puesto: ${d.puesto || "—"}
-- Negocio: ${d.negocio || "—"} (giro: ${d.giro || "—"})
-- Teléfono: ${d.tel || "—"}
-- Otros datos: ${d.extra || "—"}
-- Servicios / información adicional (inclúyela en lista compacta o en el reverso si es frente y vuelta): ${d.servicios || "—"}
-PALETA: ${d.paleta}.
+ACABADO: ${dual ? "laminado mate" : (o.acabado || "mate")} — no dibujar brillos plásticos.
+DISTRIBUCIÓN DEL FRENTE (jerarquía estricta, de mayor a menor):
+1) Nombre: «${d.nombre || ""}» — el texto más grande y protagonista, en una sola línea si es posible.
+2) Debajo, pequeño, en mayúsculas con letras espaciadas: «${(d.puesto || d.giro || "")}».
+3) Zona inferior de contacto, discreta y bien alineada: «${d.negocio || ""}» · teléfono «${d.tel || ""}»${d.extra ? ` · «${d.extra}»` : ""}.
+${d.servicios ? `4) ${dual ? "En el REVERSO, bajo el logotipo, " : ""}lista compacta de servicios con viñetas mínimas: «${d.servicios}».` : ""}
+${dual ? `DISTRIBUCIÓN DEL REVERSO: minimalista — el logotipo centrado como protagonista y el nombre «${d.negocio || ""}» debajo. Mucho espacio vacío alrededor. Nada más.` : ""}
+PALETA: ${d.paleta}. Giro del negocio (solo contexto de diseño, no escribirlo): ${d.giro || "—"}.
 ${d.logoNote || ""} ${d.refNote || ""}
-REGLAS: tipografía legible mínimo equivalente a 7 pt, jerarquía nombre > puesto > contacto, composición equilibrada. NO agregues texto que no esté en la lista. Verifica la ortografía exacta de cada dato.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`,
+REGLAS: margen interno de seguridad equivalente a 4 mm (nada pegado al borde), tipografía de datos perfectamente legible, cero adornos innecesarios, NO agregues ningún texto que no esté entre comillas « ».${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`;
+  },
 
   lonas: (d, o) => `Diseña una LONA PUBLICITARIA de gran formato lista para impresión.
 FORMATO: ${o.medida || "200 x 100 cm"} — respeta EXACTAMENTE esta proporción de ancho por alto. Colores saturados estilo CMYK.
@@ -194,6 +237,12 @@ export default async function handler(req, res) {
   });
   if (notas.length) prompt += `\nIMÁGENES ADJUNTAS: ${notas.join("; ")}.`;
 
+  // Paso "director de arte": enriquece el brief mirando logo y referencias
+  const dirImgs = [logo, logo2, ...(Array.isArray(refs) ? refs.slice(0, 2) : [])]
+    .filter(u => typeof u === "string" && u.startsWith("data:image"));
+  const enriquecido = await directorDeArte(apiKey, prompt, dirImgs);
+  if (enriquecido) prompt = enriquecido + CALIDAD + PRESENTACION + MARCA_DE_AGUA;
+
   try {
     let r;
     if (images.length) {
@@ -202,7 +251,7 @@ export default async function handler(req, res) {
       form.append("model", "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", size);
-      form.append("quality", "medium");
+      form.append("quality", "high");
       form.append("n", "1");
       images.forEach((bl, i) => form.append("image[]", bl, `img${i + 1}.png`));
       r = await fetch("https://api.openai.com/v1/images/edits", {
@@ -222,7 +271,7 @@ export default async function handler(req, res) {
           model: "gpt-image-1",
           prompt,
           size,
-          quality: "medium", // "low" = más barato, "high" = mejor calidad
+          quality: "high", // "high" = texto mucho más limpio (~$0.19/img) · "medium" ~$0.06 · "low" ~$0.02
           n: 1
         })
       });
