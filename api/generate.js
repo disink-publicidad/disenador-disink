@@ -36,6 +36,29 @@ function styleGuide(s) {
 }
 
 // ============================================================
+// REGLAS INVIOLABLES POR PRODUCTO
+// El "director de arte" reescribe el brief y puede olvidar reglas
+// duras del negocio (proporciones, mate obligatorio, despunte,
+// márgenes, corte de vinil plano...). Estas se REINYECTAN SIEMPRE
+// después del director para que nunca se pierdan.
+// ============================================================
+function reglasDuras(product, d, o) {
+  const dual = product === "tarjetas" && (o.lados || "").includes("vuelta");
+  const reglas = {
+    tarjetas: `Cada tarjeta en proporción OBLIGATORIA 1.8:1 HORIZONTAL (9 de ancho x 5 de alto); PROHIBIDO dibujarlas verticales. Esquinas/despunte: ${d.despunte || "las 4 esquinas rectas"}. ${dual
+      ? "DOS tarjetas del mismo tamaño lado a lado (IZQUIERDA = FRENTE, DERECHA = REVERSO) y acabado MATE OBLIGATORIO (sin brillos plásticos)."
+      : "UNA sola tarjeta centrada."} Margen interno de seguridad de 4 mm: nada de texto pegado al borde.`,
+    lonas: `Respeta EXACTAMENTE la proporción ${o.medida || "200 x 100 cm"} (ancho x alto). Deja 5 cm de margen perimetral libre de textos y elementos importantes. Máxima legibilidad a distancia; el teléfono debe leerse desde lejos.`,
+    volantes: `Formato ${o.tam || "media carta"} VERTICAL. ${(o.lados || "").includes("vuelta")
+      ? "Frente y vuelta en el mismo lienzo, lado a lado."
+      : "Un solo lado."} Jerarquía: título > oferta > servicios > contacto.`,
+    stickers: `Forma ${o.forma || "circular"} con línea de troquel (contorno de corte) a 2 mm del diseño; el fondo llega hasta el borde del troquel, sin filos blancos. Legible a tamaño real.`,
+    vinil: `TÉCNICA OBLIGATORIA: colores 100% PLANOS y SÓLIDOS (${d.paleta || "los colores indicados"}). PROHIBIDO degradados, sombras, fotografías, texturas o efectos 3D. Trazos gruesos y formas cerradas aptas para plotter de corte (grosor mínimo equivalente a 3 mm real).`
+  };
+  return `\nREGLAS INVIOLABLES DEL PRODUCTO (respétalas por encima de cualquier otra cosa): ${reglas[product] || ""}`;
+}
+
+// ============================================================
 // "DIRECTOR DE ARTE" — el truco del JSON, automatizado:
 // antes de generar la imagen, un modelo de visión (gpt-4o-mini)
 // mira el logo y las referencias, lee el brief y lo reescribe
@@ -46,27 +69,33 @@ const DIRECTOR = `Actúa como director de arte senior de una imprenta profesiona
 Recibirás un BRIEF técnico y posiblemente imágenes (logotipos del cliente y referencias de estilo).
 TU TAREA: reescribe el brief como UN solo prompt de generación de imagen extraordinariamente detallado y visual (máximo 350 palabras): describe la composición exacta zona por zona, el fondo, texturas, estilo tipográfico, tamaños relativos de cada elemento, paleta con códigos de color, y elementos gráficos decorativos concretos. Estética de estudio de diseño premiado.
 REGLAS OBLIGATORIAS:
+- Si hay una imagen de REFERENCIA de diseño, tu PRIORIDAD #1 es REPLICARLA: describe con precisión quirúrgica su composición, distribución de elementos, formas, estilo tipográfico, fondos y esquema de color, y pide reproducir ese mismo diseño sustituyendo ÚNICAMENTE los textos y logotipos por los del cliente. El resultado debe parecer del mismo diseñador y la misma familia visual que la referencia, no solo "inspirado" en ella.
 - Conserva TAL CUAL, sin cambiar ni una letra ni un acento, todos los textos entre comillas « » (son datos reales del cliente) y mantenlos entre « ».
-- Conserva la orientación, proporción, medidas y esquinas indicadas en el brief.
-- Si hay imágenes de referencia, analiza su estilo (colores, composición, tipografía, ambiente) e incorpóralo al prompt.
+- Conserva la orientación, proporción, medidas y esquinas indicadas en el brief (a menos que la referencia sea claramente vertical y el brief lo permita).
 - Si hay logotipo, indica que se integre tal cual, sin redibujarlo.
 - NO agregues textos nuevos al diseño que no estén en el brief.
 Responde SOLO con el prompt final, sin explicaciones ni comentarios.`;
 
+/* Modelo del director: configúralo en Vercel con la variable DIRECTOR_MODEL
+   (ej. el modelo más nuevo disponible en tu cuenta). Si falla, cae al respaldo. */
 async function directorDeArte(apiKey, brief, imgs) {
-  try {
-    const content = [{ type: "text", text: DIRECTOR + "\n\nBRIEF:\n" + brief }];
-    imgs.slice(0, 3).forEach(u => content.push({ type: "image_url", image_url: { url: u, detail: "low" } }));
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content }], max_tokens: 700 })
-    });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const t = j.choices?.[0]?.message?.content?.trim();
-    return (t && t.length > 100) ? t : null;
-  } catch (e) { return null; }
+  const modelos = [...new Set([process.env.DIRECTOR_MODEL || "gpt-4o", "gpt-4o-mini"])];
+  const content = [{ type: "text", text: DIRECTOR + "\n\nBRIEF:\n" + brief }];
+  imgs.slice(0, 3).forEach(u => content.push({ type: "image_url", image_url: { url: u, detail: "high" } }));
+  for (const model of modelos) {
+    try {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: "user", content }], max_tokens: 1000 })
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const t = j.choices?.[0]?.message?.content?.trim();
+      if (t && t.length > 100) return t;
+    } catch (e) { /* intenta el siguiente modelo */ }
+  }
+  return null;
 }
 
 // ============================================================
@@ -224,31 +253,48 @@ export default async function handler(req, res) {
 
   let prompt = builder(d, o);
 
-  // Imágenes adjuntas: logo real + hasta 2 referencias
+  // Imágenes adjuntas: REFERENCIAS PRIMERO (para que manden la composición), luego logos.
+  // En /images/edits, gpt-image-1 le da más peso a las primeras imágenes; por eso, si hay
+  // referencia de diseño, va al frente y se le pide REPLICARLA, no solo "inspirarse".
   const images = [];
   const notas = [];
-  const logoBlob = dataUrlToBlob(logo);
-  if (logoBlob) { images.push(logoBlob); notas.push("la imagen 1 es el LOGOTIPO REAL del cliente para el FRENTE: intégralo tal cual, sin redibujarlo"); }
-  const logo2Blob = dataUrlToBlob(logo2);
-  if (logo2Blob) { images.push(logo2Blob); notas.push(`la imagen ${images.length} es el logotipo para el REVERSO: úsalo solo en el reverso, tal cual, sin redibujarlo`); }
-  (Array.isArray(refs) ? refs.slice(0, 2) : []).forEach(u => {
-    const b = dataUrlToBlob(u);
-    if (b) { images.push(b); notas.push(`la imagen ${images.length} es una REFERENCIA de estilo: úsala solo como inspiración visual`); }
+
+  const refBlobs = (Array.isArray(refs) ? refs.slice(0, 2) : [])
+    .map(dataUrlToBlob)
+    .filter(Boolean);
+  refBlobs.forEach((b) => {
+    images.push(b);
+    notas.push(`la imagen ${images.length} es la REFERENCIA de diseño: REPLICA su composición, distribución de elementos, formas, estilo tipográfico y esquema de color; sustituye ÚNICAMENTE los textos y el logotipo por los del cliente. Debe parecer de la misma familia visual que esta referencia`);
   });
+
+  const logoBlob = dataUrlToBlob(logo);
+  if (logoBlob) {
+    images.push(logoBlob);
+    notas.push(`la imagen ${images.length} es el LOGOTIPO REAL del cliente para el FRENTE: intégralo tal cual, sin redibujarlo`);
+  }
+
+  const logo2Blob = dataUrlToBlob(logo2);
+  if (logo2Blob) {
+    images.push(logo2Blob);
+    notas.push(`la imagen ${images.length} es el logotipo para el REVERSO: úsalo solo en el reverso, tal cual, sin redibujarlo`);
+  }
+
   if (notas.length) prompt += `\nIMÁGENES ADJUNTAS: ${notas.join("; ")}.`;
 
   // Paso "director de arte": enriquece el brief mirando logo y referencias
-  const dirImgs = [logo, logo2, ...(Array.isArray(refs) ? refs.slice(0, 2) : [])]
+  const dirImgs = [...(Array.isArray(refs) ? refs.slice(0, 2) : []), logo, logo2]
     .filter(u => typeof u === "string" && u.startsWith("data:image"));
   const enriquecido = await directorDeArte(apiKey, prompt, dirImgs);
-  if (enriquecido) prompt = enriquecido + CALIDAD + PRESENTACION + MARCA_DE_AGUA;
+  // Aunque el director reescriba el brief, REINYECTAMOS las reglas duras del producto
+  // para que nunca se pierdan (proporciones, mate dual, despunte, vinil plano, etc.).
+  if (enriquecido) prompt = enriquecido + reglasDuras(product, d, o) + CALIDAD + PRESENTACION + MARCA_DE_AGUA;
 
   try {
     let r;
     if (images.length) {
       // Con imágenes → endpoint de edición (acepta imágenes de entrada)
       const form = new FormData();
-      form.append("model", "gpt-image-1");
+      form.append("model", process.env.IMAGE_MODEL || "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", size);
       form.append("quality", "high");
@@ -268,7 +314,7 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-image-1",
+          model: process.env.IMAGE_MODEL || "gpt-image-1",
           prompt,
           size,
           quality: "high", // "high" = texto mucho más limpio (~$0.19/img) · "medium" ~$0.06 · "low" ~$0.02
