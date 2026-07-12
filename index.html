@@ -119,6 +119,16 @@ input[type=file]{padding:9px}
 .notice{font-size:.78rem;color:var(--muted);background:#14161d;border-left:3px solid var(--yellow);padding:10px 14px;border-radius:8px;margin-top:12px;line-height:1.5}
 .err{border-left-color:var(--magenta);color:#ffb3d6}
 
+/* galería de propuestas IA */
+.props-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:100%}
+.prop{margin:0;cursor:pointer;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#0d1424;transition:.15s;position:relative}
+.prop img{display:block;width:100%;height:auto;border-radius:0;box-shadow:none}
+.prop figcaption{font-size:.78rem;text-align:center;padding:7px;color:var(--muted)}
+.prop:hover{border-color:var(--cyan)}
+.prop.sel{border-color:var(--magenta);box-shadow:0 0 0 2px var(--magenta)}
+.prop.sel figcaption{color:var(--magenta);font-weight:700}
+.prop.sel::after{content:"✓ Elegida";position:absolute;top:8px;right:8px;background:var(--magenta);color:#fff;font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:99px}
+
 /* ====== PLANTILLAS DE VISTA PREVIA ====== */
 .mock{position:relative;overflow:hidden;box-shadow:0 12px 45px rgba(0,0,0,.55);flex-shrink:0}
 .mock *{line-height:1.25}
@@ -235,7 +245,7 @@ footer b{color:var(--magenta)}
           <h4>Resumen de tu pedido</h4>
           <ul id="summaryOut"></ul>
           <div class="btns" style="margin-top:16px">
-            <button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>
+            <button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar 3 propuestas con IA</button>
           </div>
           <div class="notice">Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.</div>
         </div>
@@ -999,7 +1009,7 @@ async function generateAI(){
     return;
   }
   btn.disabled = true;
-  out.innerHTML = `<div class="spinner"></div><p class="hint" style="text-align:center">Creando tu propuesta con IA… esto toma ~30 segundos</p>`;
+  out.innerHTML = `<div class="spinner"></div><p class="hint" style="text-align:center">Nuestro diseñador digital está trabajando… puede tardar hasta 1 minuto ☕</p>`;
   try{
     const res = await fetch("/api/generate", {
       method:"POST",
@@ -1014,14 +1024,33 @@ async function generateAI(){
     const j = await res.json();
     if(!res.ok || j.error) throw new Error(j.error || "Error del servidor");
     marcarUsoIA();
-    const marcada = await watermarkImage(j.image);
-    out.innerHTML = `<div class="side-label" style="margin-top:14px">Propuesta generada con IA · muestra</div>
-      <img src="${marcada}" alt="Propuesta de diseño (muestra con marca de agua)">
-      <p class="hint" style="margin-top:10px">¿Te gustó? Confírmalo por WhatsApp y recibe el archivo final sin marca de agua, listo para imprimir.</p>`;
+    const lista = (Array.isArray(j.images) && j.images.length) ? j.images : [j.image];
+    const marcadas = await Promise.all(lista.map(watermarkImage));
+    state.propuestas = marcadas;
+    state.propuestaElegida = null;
+    out.innerHTML = `<div class="side-label" style="margin-top:14px">Propuestas generadas con IA · muestra</div>
+      <p class="hint" style="margin:2px 0 12px">Toca la que más te guste para elegirla y confírmala por WhatsApp.</p>
+      <div class="props-grid">
+        ${marcadas.map((src,i)=>`
+          <figure class="prop" data-i="${i}" onclick="elegirPropuesta(${i})">
+            <img src="${src}" alt="Propuesta ${i+1} (muestra con marca de agua)">
+            <figcaption>Propuesta ${i+1}</figcaption>
+          </figure>`).join("")}
+      </div>
+      <p class="hint" style="margin-top:10px">Recibes el archivo final de la que elijas, en alta calidad y sin marca de agua.</p>`;
+    if(marcadas.length===1) elegirPropuesta(0);
   }catch(e){
     out.innerHTML = `<div class="notice err">No se pudo generar la propuesta: ${e.message}. Intenta de nuevo o contáctanos por WhatsApp.</div>`;
   }
   btn.disabled = false;
+}
+
+/* El cliente elige una de las propuestas */
+function elegirPropuesta(i){
+  state.propuestaElegida = i;
+  document.querySelectorAll(".prop").forEach(el=>{
+    el.classList.toggle("sel", Number(el.dataset.i)===i);
+  });
 }
 
 /* Marca de agua sobre la imagen de IA (capa extra a la del servidor) */
@@ -1036,13 +1065,13 @@ function watermarkImage(dataUrl){
       ctx.save();
       ctx.translate(cv.width/2, cv.height/2);
       ctx.rotate(-Math.PI/9);
-      const fs = Math.max(24, Math.floor(cv.width/16));
+      const fs = Math.max(18, Math.floor(cv.width/26));
       ctx.font = `bold ${fs}px Arial`;
       ctx.textAlign = "center";
-      for(let y=-cv.height; y<=cv.height; y+=fs*3.2){
-        ctx.fillStyle = "rgba(0,0,0,0.14)";
-        ctx.fillText("DISINK CONTROL · MUESTRA", 3, y+3);
-        ctx.fillStyle = "rgba(255,255,255,0.26)";
+      for(let y=-cv.height; y<=cv.height; y+=fs*6){
+        ctx.fillStyle = "rgba(0,0,0,0.07)";
+        ctx.fillText("DISINK CONTROL · MUESTRA", 2, y+2);
+        ctx.fillStyle = "rgba(255,255,255,0.13)";
         ctx.fillText("DISINK CONTROL · MUESTRA", 0, y);
       }
       ctx.restore();
@@ -1070,6 +1099,7 @@ function sendWhatsApp(){
     .filter(([k,v])=>v && !["logoNote","refNote","paleta","terminadoNota"].includes(k))
     .map(([k,v])=>`• ${k}: ${v}`).join("\n");
   const extras = [];
+  if(state.propuestaElegida!=null) extras.push(`Me gustó la propuesta #${state.propuestaElegida+1} de las que generó la IA`);
   if(state.product==="tarjetas" && despunteDesc().n) extras.push("Despuntes: "+despunteDesc().text);
   if(state.logoDataUrl) extras.push("Tengo logo, te lo mando por aquí");
   if(state.logo2DataUrl) extras.push("Tengo un segundo logo para el reverso");
