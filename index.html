@@ -119,16 +119,6 @@ input[type=file]{padding:9px}
 .notice{font-size:.78rem;color:var(--muted);background:#14161d;border-left:3px solid var(--yellow);padding:10px 14px;border-radius:8px;margin-top:12px;line-height:1.5}
 .err{border-left-color:var(--magenta);color:#ffb3d6}
 
-/* galería de propuestas IA */
-.props-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:100%}
-.prop{margin:0;cursor:pointer;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#0d1424;transition:.15s;position:relative}
-.prop img{display:block;width:100%;height:auto;border-radius:0;box-shadow:none}
-.prop figcaption{font-size:.78rem;text-align:center;padding:7px;color:var(--muted)}
-.prop:hover{border-color:var(--cyan)}
-.prop.sel{border-color:var(--magenta);box-shadow:0 0 0 2px var(--magenta)}
-.prop.sel figcaption{color:var(--magenta);font-weight:700}
-.prop.sel::after{content:"✓ Elegida";position:absolute;top:8px;right:8px;background:var(--magenta);color:#fff;font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:99px}
-
 /* ====== PLANTILLAS DE VISTA PREVIA ====== */
 .mock{position:relative;overflow:hidden;box-shadow:0 12px 45px rgba(0,0,0,.55);flex-shrink:0}
 .mock *{line-height:1.25}
@@ -244,14 +234,14 @@ footer b{color:var(--magenta)}
         <div class="summary-box">
           <h4>Resumen de tu pedido</h4>
           <ul id="summaryOut"></ul>
-          <div class="btns" style="margin-top:16px">
-            <button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar 3 propuestas con IA</button>
+          <div class="btns" style="margin-top:16px" id="aiActions">
+            <button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>
           </div>
-          <div class="notice">Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.</div>
+          <div class="notice" id="resultNotice">Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.</div>
         </div>
         <div class="btns">
           <button class="btn ghost" onclick="goStep(3)">← Editar datos</button>
-          <button class="btn primary" onclick="sendWhatsApp()">✅ Me gusta, cotizar por WhatsApp</button>
+          <button class="btn primary" id="waBtn" onclick="sendWhatsApp()">✅ Me gusta, cotizar por WhatsApp</button>
           <button class="btn ghost" onclick="restart()">↺ Empezar de nuevo</button>
         </div>
       </div>
@@ -267,11 +257,34 @@ footer b{color:var(--magenta)}
 ===================================================== */
 const WHATSAPP = "521XXXXXXXXXX"; // ← tu número con código de país
 const MAX_IA_POR_DIA = 3;         // límite de generaciones IA por visitante
+const MAX_IA_REGRESO = 1;          // etiquetas escolares: 1 referencia (alta calidad)
+const STUDIO_KEY = new URLSearchParams(location.search).get("studio") || ""; // modo diseñador: ?studio=TUCLAVE revela el prompt para pegarlo en ChatGPT
 
 /* Los PROMPTS ya NO viven aquí: están ocultos en el servidor (api/generate.js).
    La página solo junta las selecciones y datos del cliente. */
 
 const PRODUCTS = {
+  regreso: {
+    icon:"🎒", name:"Regreso a clases · Etiquetas escolares",
+    desc:"Paquetes personalizados para marcar todos los útiles con nombre, datos y el personaje favorito.",
+    colorChips:["Propongan ustedes","2","3","4"],
+    escolar:true, materias:true,
+    options:[
+      {id:"paquete", label:"Elige tu paquete", chips:["Básico · $80","Premium · $130","Único · $170"]},
+      {id:"tema", label:"Personaje o tema favorito", chips:["Dinosaurios","Unicornios","Fútbol","Espacio y planetas","Princesas","Superhéroes","Sirenas","Animalitos","Autos y carreras","Gamer / videojuegos","Anime","Flores y arcoíris","Otro"]}
+    ],
+    fields:[
+      {id:"nombre", label:"Nombre completo del alumno *", type:"text", ph:"Ej. Elian Osmael Arce Guerrero"},
+      {id:"escuela", label:"Escuela *", type:"text", ph:"Ej. Josefa O. de Domínguez"},
+      {id:"grado", label:"Grado *", type:"text", ph:"Ej. 5"},
+      {id:"grupo", label:"Grupo *", type:"text", ph:"Ej. B"},
+      {id:"maestro", label:"Maestro(a)", type:"text", ph:"Ej. Emilio Peña"},
+      {id:"tel", label:"Teléfono de seguridad *", type:"text", ph:"Ej. 324 120 6466"},
+      {id:"extra", label:"¿Algo más? (opcional)", type:"textarea", ph:"Ej. algún detalle del diseño"},
+      {id:"logo", label:"¿Foto o referencia del tema? (opcional)", type:"file"}
+    ]
+  },
+
   tarjetas: {
     icon:"💼", name:"Tarjetas de presentación",
     desc:"Tu identidad en la palma de la mano. 1 lado o frente y vuelta.",
@@ -378,6 +391,27 @@ const PRODUCTS = {
 };
 
 /* ===================================================== */
+/* Paquetes de etiquetas escolares (composición real Disink) */
+const PAQUETES = {
+  "Básico · $80":  {nombre:"Básico",  precio:80,  regalo:false, items:[
+    {tipo:"circulares", n:8,  medida:"6 cm",    uso:"identificar loncheras, recipientes, vasos y accesorios"},
+    {tipo:"datos",      n:10, medida:"9×5 cm",  uso:"cuadernos y libros (una por materia)"},
+    {tipo:"tiras",      n:40, medida:"5×1 cm",  uso:"lápices, colores, plumas y reglas"}
+  ]},
+  "Premium · $130": {nombre:"Premium", precio:130, regalo:true, items:[
+    {tipo:"portadas",   n:5,  medida:"10×15 cm", uso:"portadas para identificar en grande"},
+    {tipo:"datos",      n:15, medida:"9×5 cm",   uso:"cuadernos (una por materia)"},
+    {tipo:"tiras",      n:60, medida:"5×1 cm",   uso:"lápices y colores"}
+  ]},
+  "Único · $170":  {nombre:"Único",   precio:170, regalo:true, items:[
+    {tipo:"portadas",   n:8,  medida:"15×15 cm", uso:"portadas grandes, crea tu estilo"},
+    {tipo:"datos",      n:15, medida:"10×5 cm",  uso:"identifica todo lo que necesites"},
+    {tipo:"tiras",      n:75, medida:"5×1 cm",   uso:"lápices y colores"}
+  ]}
+};
+function currentPaquete(){ return PAQUETES[state.options.paquete] || PAQUETES["Básico · $80"]; }
+function paqueteDatosN(){ const it=currentPaquete().items.find(i=>i.tipo==="datos"); return it?it.n:10; }
+
 let state = { product:null, options:{}, data:{}, logoDataUrl:null, refDataUrls:[],
               colorCount:null, colors:[], summary:[], despuntes:{} };
 
@@ -490,6 +524,8 @@ function buildOptions(){
   });
   if(p.despuntes) buildDespuntes(zone);
   if(p.ojillos) buildOjillos(zone);
+  if(p.escolar) buildComposicion(zone);
+  if(p.materias) buildMaterias(zone);
   enforceRules();
   buildColorPicker();
   buildForm();
@@ -627,6 +663,85 @@ function enforceRules(){
     const oji = document.getElementById("ojillosBlock");
     if(oji) oji.style.display = t.includes("Ojillos") ? "" : "none";
   }
+  if(state.product==="regreso"){
+    if(state.options.paquete!==lastPaq){ lastPaq=state.options.paquete; refreshComposicion(true); }
+    updateMateriasCount();
+  }
+}
+
+/* ---------- MATERIAS (etiquetas 9x5 de cuaderno) ---------- */
+function buildMaterias(zone){
+  const div = document.createElement("div");
+  div.className="opt-group"; div.id="materiasBlock";
+  div.innerHTML = `<label class="gl">MATERIAS <span style="color:var(--muted);font-weight:400">(una etiqueta 9×5 por materia)</span></label>
+    <div id="materiasList"></div>
+    <button type="button" class="btn ghost" id="addMateria" style="margin-top:4px;padding:8px 16px">＋ Agregar materia</button>
+    <p class="hint" id="materiasCount" style="margin-top:10px"></p>`;
+  zone.appendChild(div);
+  document.getElementById("addMateria").onclick=()=>addMateriaRow();
+  addMateriaRow();
+}
+function addMateriaRow(val){
+  const list=document.getElementById("materiasList");
+  if(!list) return;
+  const row=document.createElement("div");
+  row.style.cssText="display:flex;gap:8px;align-items:center;margin-bottom:8px";
+  const inp=document.createElement("input");
+  inp.type="text"; inp.className="materia-inp"; inp.placeholder="coloca aquí tu materia";
+  if(val) inp.value=val;
+  inp.style.cssText="flex:1;background:var(--panel);border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:.9rem;outline:none";
+  inp.oninput=updateMateriasCount;
+  const del=document.createElement("button");
+  del.type="button"; del.className="btn ghost"; del.textContent="✕";
+  del.style.cssText="padding:8px 12px"; del.title="Quitar materia";
+  del.onclick=()=>{ row.remove(); updateMateriasCount(); };
+  row.appendChild(inp); row.appendChild(del);
+  list.appendChild(row);
+  updateMateriasCount();
+}
+function updateMateriasCount(){
+  const el=document.getElementById("materiasCount");
+  if(!el) return;
+  const filled=[...document.querySelectorAll(".materia-inp")].filter(i=>i.value.trim()).length;
+  el.innerHTML=`Tienes <b>${filled}</b> materia(s) → <b>${filled}</b> etiqueta(s) de 9×5 cm`;
+  el.style.color="var(--muted)";
+}
+
+/* ---------- COMPOSICIÓN EDITABLE (cantidades y medidas por tipo) ---------- */
+let lastPaq=null;
+function fval(id){ const e=document.getElementById(id); return e?e.value.trim():""; }
+function buildComposicion(zone){
+  const div=document.createElement("div");
+  div.className="opt-group"; div.id="compBlock";
+  div.innerHTML=`<label class="gl">COMPOSICIÓN <span style="color:var(--muted);font-weight:400">(cantidades y medidas — edítalas si quieres)</span></label>
+    <div id="compRows" style="display:flex;flex-direction:column;gap:12px"></div>
+    <p class="hint" style="margin-top:8px">Se pre-llenan según el paquete que elijas arriba.</p>`;
+  zone.appendChild(div);
+  lastPaq=state.options.paquete;
+  refreshComposicion(true);
+}
+function refreshComposicion(reset){
+  const rows=document.getElementById("compRows"); if(!rows) return;
+  const q=currentPaquete();
+  const port=q.items.find(i=>i.tipo==="circulares"||i.tipo==="portadas")||{n:5,medida:"10×15 cm",tipo:"portadas"};
+  const dat=q.items.find(i=>i.tipo==="datos")||{medida:"9×5 cm"};
+  const tir=q.items.find(i=>i.tipo==="tiras")||{n:40,medida:"5×1 cm"};
+  const cur=reset?null:{portN:fval("compPortN"),portMed:fval("compPortMed"),matMed:fval("compMatMed"),tiraN:fval("compTiraN"),tiraMed:fval("compTiraMed")};
+  const inp=(id,v,w)=>`<input id="${id}" value="${v}" style="width:${w}px;background:var(--panel);border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:.85rem;outline:none">`;
+  const label=(t)=>`<span style="min-width:160px;font-size:.85rem;font-weight:600">${t}</span>`;
+  rows.innerHTML=`
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      ${label("🖼️ Portadas / cuadernos")}
+      ${inp("compPortN", reset?port.n:cur.portN, 64)} <span class="hint">pzas ×</span> ${inp("compPortMed", reset?port.medida:cur.portMed, 96)}
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      ${label("📓 Materias (cuadernos)")}
+      <span class="hint">cantidad = tus materias</span> <span class="hint">×</span> ${inp("compMatMed", reset?dat.medida:cur.matMed, 96)}
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      ${label("✏️ Lápices y colores")}
+      ${inp("compTiraN", reset?tir.n:cur.tiraN, 64)} <span class="hint">pzas ×</span> ${inp("compTiraMed", reset?tir.medida:cur.tiraMed, 96)}
+    </div>`;
 }
 
 /* Reduce imágenes antes de guardarlas (para no exceder límites al enviar a la IA) */
@@ -792,6 +907,18 @@ function collectData(){
     ? `Se adjuntan ${nr} imagen(es) de referencia de estilo: úsalas como inspiración visual, sin copiarlas literalmente.`
     : "";
   if(state.product==="tarjetas") state.data.despunte = despunteDesc().text;
+  if(state.product==="regreso"){
+    state.data.materiasArr = [...document.querySelectorAll(".materia-inp")].map(i=>i.value.trim()).filter(Boolean);
+    state.data.materias = state.data.materiasArr.join(", ");
+    const q0=currentPaquete();
+    const primero=q0.items.find(i=>i.tipo==="circulares"||i.tipo==="portadas")||{tipo:"portadas"};
+    state.data.portN   = fval("compPortN") || "5";
+    state.data.portMed = fval("compPortMed") || "10×15 cm";
+    state.data.matMed  = fval("compMatMed") || "9×5 cm";
+    state.data.tiraN   = fval("compTiraN") || "40";
+    state.data.tiraMed = fval("compTiraMed") || "5×1 cm";
+    state.data.portForma = primero.tipo==="circulares" ? "circulares" : "tipo portada (silueta)";
+  }
 }
 
 /* ---------- PASO 4: resultado ---------- */
@@ -800,8 +927,42 @@ function buildResult(){
   renderSummary();
   document.getElementById("aiOut").innerHTML = "";
   renderPreview();
+  setupResultActions();
   goStep(4);
 }
+
+/* Acciones del paso 4 según el producto */
+function setupResultActions(){
+  const actions=document.getElementById("aiActions");
+  const notice=document.getElementById("resultNotice");
+  const wa=document.getElementById("waBtn");
+  if(state.product==="regreso"){
+    const disink = !!STUDIO_KEY;   // solo Disink (con la llave) ve el prompt
+    if(actions) actions.innerHTML = disink
+      ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🎨 Generar + obtener prompt (Disink 🔒)</button>`
+      : `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Ver mi diseño (referencia)</button>`;
+    if(notice) notice.innerHTML = disink
+      ? `<b>Modo Disink 🔒</b> — al generar obtienes la referencia y el <b>prompt</b> para pegar en ChatGPT. El prompt viene del servidor y solo se muestra con la llave; el cliente nunca lo ve.`
+      : `Lo que ves es una <b>referencia con marca de agua</b>. Tu <b>diseño final</b>, en alta calidad y sin marca de agua, te lo entregamos al confirmar tu pago. Manda tus datos por WhatsApp para cotizar.`;
+    if(wa) wa.textContent="📲 Enviar mis datos por WhatsApp";
+  } else {
+    if(actions) actions.innerHTML=`<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>`;
+    if(notice) notice.innerHTML=`Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.`;
+    if(wa) wa.textContent="✅ Me gusta, cotizar por WhatsApp";
+  }
+}
+
+/* Arma el prompt escolar (para pegar en ChatGPT) con los datos del cliente */
+function temaLimpio(){
+  let t=(state.options.tema||"").trim().replace(/^Otro:\s*/i,"");
+  if(!t || /^otro$/i.test(t)) t="(escribe aquí el tema)";
+  return t;
+}
+/* SEGURIDAD (REGLA DISINK): el PROMPT de las etiquetas escolares NO se arma
+   ni se expone en el navegador del cliente. Vive con llave en el servidor
+   (api/generate.js -> PROMPTS.regreso) y solo se devuelve cuando la petición
+   trae la llave correcta (?studio=CLAVE que coincide con STUDIO_KEY en Vercel).
+   Así el cliente ve su referencia con marca de agua, pero nunca el prompt. */
 
 /* Opciones visibles según reglas (oculta las que no aplican) */
 function visibleOptions(){
@@ -828,6 +989,11 @@ function renderSummary(){
     ...(state.product==="tarjetas" ? [["Despuntes", despunteDesc().label]] : []),
     ...(state.product==="lonas" && state.data.ojillos ? [["Ojillos", state.data.ojillos]] : []),
     ...(state.product==="lonas" && state.data.pegue ? [["Pegue", "⚠️ "+state.data.pegue]] : []),
+    ...(state.product==="regreso" ? [
+      ["Portadas", `${state.data.portN||"—"} pza(s) · ${state.data.portMed||"—"}`],
+      ["Materias", `${(state.data.materiasArr||[]).length} etiqueta(s) · ${state.data.matMed||"9×5 cm"}`],
+      ["Lápices y colores", `${state.data.tiraN||"—"} pza(s) · ${state.data.tiraMed||"—"}`]
+    ] : []),
     ["Colores", colorTxt],
     ["Referencias", nr ? nr+" imagen(es) ✓" : "No"],
     ["Logo", state.logoDataUrl ? "Sí, subido ✓" : "Pendiente"],
@@ -873,6 +1039,11 @@ const WM = `<div class="wm"></div>`;
 function logoImg(h){ return state.logoDataUrl ? `<img class="m-logo" src="${state.logoDataUrl}" style="height:${h}px">` : ""; }
 function esc(s){ return (s||"").replace(/</g,"&lt;"); }
 
+const TEMA_EMOJI = {
+  "Dinosaurios":"🦕","Unicornios":"🦄","Fútbol":"⚽","Espacio y planetas":"🚀",
+  "Princesas":"👑","Superhéroes":"🦸","Sirenas":"🧜‍♀️","Animalitos":"🐻",
+  "Autos y carreras":"🏎️","Gamer / videojuegos":"🎮","Flores y arcoíris":"🌈"
+};
 function renderPreview(){
   const area = document.getElementById("previewArea");
   const d = state.data, o = state.options, c = theme();
@@ -956,6 +1127,44 @@ function renderPreview(){
       </div></div>`;
   }
 
+  else if(state.product==="regreso"){
+    const q = PAQUETES[o.paquete] || PAQUETES["Básico · $80"];
+    const emoji = TEMA_EMOJI[o.tema] || "✨";
+    const nombre = esc(d.nombre)||"Nombre del alumno";
+    const materias = (state.data.materiasArr||[]).filter(Boolean);
+    const top = q.items[0];
+    const circHtml = Array.from({length:Math.min(top.n,3)}).map(()=>`
+      <div style="width:74px;height:74px;border-radius:${top.tipo==='circulares'?'50%':'12px'};background:${c.bg};color:${c.fg};font-family:${c.font};display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid ${c.acc};text-align:center;padding:4px;overflow:hidden;flex-shrink:0">
+        <div style="font-size:1.5rem;line-height:1">${emoji}</div>
+        <div style="font-size:.42rem;font-weight:800;color:${c.acc};line-height:1.05;word-break:break-word">${nombre}</div>
+      </div>`).join("");
+    const sample = (materias.length?materias:["Materia"]).slice(0,3);
+    const datosHtml = sample.map(mat=>`
+      <div style="width:min(240px,80%);background:#fdf6e3;color:#3a2b12;border-radius:10px;border:2px solid ${c.acc};display:flex;overflow:hidden;font-family:${c.font}">
+        <div style="width:58px;background:${c.bg};display:flex;align-items:center;justify-content:center;font-size:1.7rem;flex-shrink:0">${emoji}</div>
+        <div style="padding:6px 8px;font-size:.5rem;line-height:1.5;flex:1;min-width:0">
+          <div style="font-weight:800;color:${c.acc};font-size:.62rem;text-transform:uppercase">${esc(mat)}</div>
+          <div><b>Nombre:</b> ${nombre}</div>
+          <div><b>Escuela:</b> ${esc(d.escuela)||"—"}</div>
+          <div><b>Grado:</b> ${esc(d.grado)||"—"} &nbsp;<b>Grupo:</b> ${esc(d.grupo)||"—"}</div>
+          <div><b>Maestro(a):</b> ${esc(d.maestro)||"—"}</div>
+          <div><b>Tel:</b> ${esc(d.tel)||"—"}</div>
+        </div>
+      </div>`).join("");
+    const tiras = Array.from({length:6}).map(()=>`
+      <div style="background:${c.bg};color:${c.fg};border:1.5px solid ${c.acc};border-radius:6px;padding:3px 8px;font-size:.5rem;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap">${emoji}<span style="color:${c.acc}">${nombre}</span></div>`).join("");
+    html = `<div style="width:min(370px,94vw)">
+      <div class="side-label">Paquete ${esc(q.nombre)} · ${esc(o.tema||"")}</div>
+      <div class="mock" style="background:#ffffff;border-radius:14px;padding:14px;position:relative;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap">${circHtml}<span style="font-size:.6rem;color:#555;font-weight:800">×${state.data.portN||top.n}</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center">${datosHtml}<span style="font-size:.55rem;color:#555;font-weight:800">materias ×${materias.length||0}${materias.length>3?" (muestra 3)":""}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center">${tiras}<span style="font-size:.55rem;color:#555;font-weight:800">×${state.data.tiraN||q.items[2].n}</span></div>
+        ${WM}
+      </div>
+      <p class="hint" style="margin-top:8px;text-align:center">Boceto del acomodo — la ilustración final del tema la genera ChatGPT con tu prompt</p>
+    </div>`;
+  }
+
   else if(state.product==="stickers"){
     const shape = (o.forma||"").includes("Circular") ? "circle" : "square";
     html = `<div><div class="side-label">Sticker · ${esc(o.forma||"")}</div>
@@ -989,23 +1198,28 @@ function renderPreview(){
 }
 
 /* ---------- IA (prompt oculto en el servidor) ---------- */
+function iaKey(){ return state.product==="regreso" ? "dc_ia_reg" : "dc_ia"; }
+function iaLimite(){ if(STUDIO_KEY) return Infinity; return state.product==="regreso" ? MAX_IA_REGRESO : MAX_IA_POR_DIA; }
 function iaUsadasHoy(){
   try{
-    const rec = JSON.parse(localStorage.getItem("dc_ia")||"{}");
+    const rec = JSON.parse(localStorage.getItem(iaKey())||"{}");
     const hoy = new Date().toISOString().slice(0,10);
     return rec.d===hoy ? rec.n : 0;
   }catch(e){ return 0; }
 }
 function marcarUsoIA(){
   const hoy = new Date().toISOString().slice(0,10);
-  localStorage.setItem("dc_ia", JSON.stringify({d:hoy, n:iaUsadasHoy()+1}));
+  localStorage.setItem(iaKey(), JSON.stringify({d:hoy, n:iaUsadasHoy()+1}));
 }
 
 async function generateAI(){
   const btn = document.getElementById("aiBtn");
   const out = document.getElementById("aiOut");
-  if(iaUsadasHoy() >= MAX_IA_POR_DIA){
-    out.innerHTML = `<div class="notice err">Alcanzaste el límite de ${MAX_IA_POR_DIA} propuestas con IA por día. Contáctanos por WhatsApp y con gusto seguimos afinando tu diseño. 😉</div>`;
+  const esReg = state.product==="regreso";
+  if(iaUsadasHoy() >= iaLimite()){
+    out.innerHTML = esReg
+      ? `<div class="notice err">Ya generaste tu <b>referencia</b> de hoy. Descarga tu prompt y mándanoslo por WhatsApp para tu diseño final. 😉</div>`
+      : `<div class="notice err">Alcanzaste el límite de ${MAX_IA_POR_DIA} propuestas con IA por día. Contáctanos por WhatsApp y con gusto seguimos afinando tu diseño. 😉</div>`;
     return;
   }
   btn.disabled = true;
@@ -1018,39 +1232,37 @@ async function generateAI(){
         product: state.product, options: state.options, data: state.data,
         logo: state.logoDataUrl || null,
         logo2: state.logo2DataUrl || null,
-        refs: (state.refDataUrls||[]).slice(0,2)
+        refs: (state.refDataUrls||[]).slice(0,2),
+        studio: STUDIO_KEY || undefined
       })
     });
     const j = await res.json();
     if(!res.ok || j.error) throw new Error(j.error || "Error del servidor");
     marcarUsoIA();
-    const lista = (Array.isArray(j.images) && j.images.length) ? j.images : [j.image];
-    const marcadas = await Promise.all(lista.map(watermarkImage));
-    state.propuestas = marcadas;
-    state.propuestaElegida = null;
-    out.innerHTML = `<div class="side-label" style="margin-top:14px">Propuestas generadas con IA · muestra</div>
-      <p class="hint" style="margin:2px 0 12px">Toca la que más te guste para elegirla y confírmala por WhatsApp.</p>
-      <div class="props-grid">
-        ${marcadas.map((src,i)=>`
-          <figure class="prop" data-i="${i}" onclick="elegirPropuesta(${i})">
-            <img src="${src}" alt="Propuesta ${i+1} (muestra con marca de agua)">
-            <figcaption>Propuesta ${i+1}</figcaption>
-          </figure>`).join("")}
-      </div>
-      <p class="hint" style="margin-top:10px">Recibes el archivo final de la que elijas, en alta calidad y sin marca de agua.</p>`;
-    if(marcadas.length===1) elegirPropuesta(0);
+    const marcada = await watermarkImage(j.image);
+    const cap = esReg ? "Vista previa aproximada · REFERENCIA" : "Propuesta generada con IA · muestra";
+    const foot = esReg
+      ? "Esto es solo una <b>referencia</b> generada al momento. Tu <b>diseño final</b> lo hacemos nosotros con tu prompt y queda aún mejor. Descarga tu prompt y mándanoslo por WhatsApp."
+      : "¿Te gustó? Confírmalo por WhatsApp y recibe el archivo final sin marca de agua, listo para imprimir.";
+    out.innerHTML = `<div class="side-label" style="margin-top:14px">${cap}</div>
+      <img src="${marcada}" alt="Diseño (muestra con marca de agua)">
+      <p class="hint" style="margin-top:10px">${foot}</p>`;
+    if(j.prompts){ renderStudioPrompts(out, j.prompts); }
+    else if(j.prompt){
+      const box = document.createElement("div");
+      box.className = "notice";
+      box.style.cssText = "text-align:left;border-left-color:var(--cyan);margin-top:16px";
+      box.innerHTML = `<b>\u{1F9D1}\u200d\u{1F3A8} Modo diseñador — prompt para el arte final</b>
+        <p class="hint" style="margin:6px 0 8px">Cópialo y pégalo en ChatGPT (o tu generador de imágenes) para producir la versión final en alta.</p>
+        <textarea id="studioPrompt" readonly style="width:100%;min-height:150px;background:#0f1117;border:1.5px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:inherit;font-size:.78rem;line-height:1.5;resize:vertical"></textarea>
+        <button class="btn cyan" style="margin-top:10px" onclick="copyStudioPrompt()">\u{1F4CB} Copiar prompt</button>\n        <button class="btn ghost" style="margin-top:10px" onclick="downloadStudioPrompt()">\u{1F4C4} Descargar .txt</button>`;
+      out.appendChild(box);
+      document.getElementById("studioPrompt").value = j.prompt;
+    }
   }catch(e){
     out.innerHTML = `<div class="notice err">No se pudo generar la propuesta: ${e.message}. Intenta de nuevo o contáctanos por WhatsApp.</div>`;
   }
   btn.disabled = false;
-}
-
-/* El cliente elige una de las propuestas */
-function elegirPropuesta(i){
-  state.propuestaElegida = i;
-  document.querySelectorAll(".prop").forEach(el=>{
-    el.classList.toggle("sel", Number(el.dataset.i)===i);
-  });
 }
 
 /* Marca de agua sobre la imagen de IA (capa extra a la del servidor) */
@@ -1065,13 +1277,13 @@ function watermarkImage(dataUrl){
       ctx.save();
       ctx.translate(cv.width/2, cv.height/2);
       ctx.rotate(-Math.PI/9);
-      const fs = Math.max(18, Math.floor(cv.width/26));
+      const fs = Math.max(24, Math.floor(cv.width/16));
       ctx.font = `bold ${fs}px Arial`;
       ctx.textAlign = "center";
-      for(let y=-cv.height; y<=cv.height; y+=fs*6){
-        ctx.fillStyle = "rgba(0,0,0,0.07)";
-        ctx.fillText("DISINK CONTROL · MUESTRA", 2, y+2);
-        ctx.fillStyle = "rgba(255,255,255,0.13)";
+      for(let y=-cv.height; y<=cv.height; y+=fs*3.2){
+        ctx.fillStyle = "rgba(0,0,0,0.14)";
+        ctx.fillText("DISINK CONTROL · MUESTRA", 3, y+3);
+        ctx.fillStyle = "rgba(255,255,255,0.26)";
         ctx.fillText("DISINK CONTROL · MUESTRA", 0, y);
       }
       ctx.restore();
@@ -1090,8 +1302,64 @@ document.addEventListener("keydown", e=>{
   if((e.ctrlKey||e.metaKey) && (e.key==="s"||e.key==="S")) e.preventDefault();
 });
 
+/* Modo Disink: 3 prompts por pieza + plan de impresión 13×19 */
+function renderStudioPrompts(out, P){
+  const box=document.createElement("div");
+  box.className="notice";
+  box.style.cssText="text-align:left;border-left-color:var(--cyan);margin-top:16px";
+  const piezas=[
+    ["🖼️ Portada / cuaderno", P.portada, "prompt_portada"],
+    ["📓 Materias (9×5)", P.materia, "prompt_materias"],
+    ["✏️ Lápices y colores (tira)", P.tira, "prompt_tiras"]
+  ];
+  const bloque=(tit,id)=>`<div style="margin-top:12px">
+    <b>${tit}</b>
+    <textarea id="${id}" readonly style="width:100%;min-height:120px;background:#0f1117;border:1.5px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-family:inherit;font-size:.76rem;line-height:1.5;resize:vertical"></textarea>
+    <button class="btn cyan" style="margin-top:8px;padding:8px 14px" onclick="copyBox('${id}',this)">📋 Copiar</button>
+    <button class="btn ghost" style="margin-top:8px;padding:8px 14px" onclick="downloadBox('${id}','${id}.txt')">📄 .txt</button>
+  </div>`;
+  box.innerHTML=`<b>🔒 Modo Disink — 3 prompts (uno por pieza) para ChatGPT</b>
+    <p class="hint" style="margin:6px 0 2px">Genera cada pieza por separado en ChatGPT (mejor calidad de texto). El acomodo en la hoja va abajo.</p>
+    ${piezas.map(p=>bloque(p[0],p[2])).join("")}
+    ${bloque("🖨️ Plan de impresión (13×19\")","prompt_plan")}`;
+  out.appendChild(box);
+  piezas.forEach(p=>{ const t=document.getElementById(p[2]); if(t) t.value=p[1]||""; });
+  const pl=document.getElementById("prompt_plan"); if(pl) pl.value=P.plan||"";
+}
+function copyBox(id,btn){
+  const t=document.getElementById(id); if(!t) return;
+  const done=()=>{ if(btn){ const o=btn.textContent; btn.textContent="✅ Copiado"; setTimeout(()=>btn.textContent=o,1500);} };
+  if(navigator.clipboard){ navigator.clipboard.writeText(t.value).then(done,done); } else { t.select(); document.execCommand("copy"); done(); }
+}
+function downloadBox(id,fname){
+  const t=document.getElementById(id); if(!t) return;
+  const blob=new Blob([t.value],{type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+/* Descarga el prompt del servidor (solo modo Disink) como .txt */
+function downloadStudioPrompt(){
+  const t=document.getElementById("studioPrompt"); if(!t) return;
+  const blob=new Blob([t.value],{type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download="prompt_disink.txt";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+/* Copia el prompt del modo diseñador al portapapeles */
+function copyStudioPrompt(){
+  const t = document.getElementById("studioPrompt");
+  if(!t) return;
+  t.select(); t.setSelectionRange(0, 99999);
+  const done = ()=>{ const b=event&&event.target; if(b){ const o=b.textContent; b.textContent="✅ Copiado"; setTimeout(()=>b.textContent=o,1600);} };
+  if(navigator.clipboard){ navigator.clipboard.writeText(t.value).then(done, ()=>{document.execCommand("copy");done();}); }
+  else { document.execCommand("copy"); done(); }
+}
+
 /* ---------- WhatsApp y reinicio ---------- */
 function sendWhatsApp(){
+  if(state.product==="regreso"){ sendWhatsAppEscolar(); return; }
   const p = PRODUCTS[state.product];
   const n = parseInt(state.colorCount);
   const colorTxt = isNaN(n) ? "que ustedes propongan la paleta" : `${n} color(es): ${state.colors.join(", ")}`;
@@ -1099,12 +1367,29 @@ function sendWhatsApp(){
     .filter(([k,v])=>v && !["logoNote","refNote","paleta","terminadoNota"].includes(k))
     .map(([k,v])=>`• ${k}: ${v}`).join("\n");
   const extras = [];
-  if(state.propuestaElegida!=null) extras.push(`Me gustó la propuesta #${state.propuestaElegida+1} de las que generó la IA`);
   if(state.product==="tarjetas" && despunteDesc().n) extras.push("Despuntes: "+despunteDesc().text);
   if(state.logoDataUrl) extras.push("Tengo logo, te lo mando por aquí");
   if(state.logo2DataUrl) extras.push("Tengo un segundo logo para el reverso");
   if((state.refDataUrls||[]).length) extras.push(`Tengo ${state.refDataUrls.length} imagen(es) de referencia, te las mando por aquí`);
   const msg = `¡Hola Disink Control! Quiero cotizar: *${p.name}*\nOpciones: ${visibleOptions().map(([k,v])=>v).join(" · ")}\nColores: ${colorTxt}\n${datos}${extras.length? "\n"+extras.join("\n"):""}`;
+  window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+function sendWhatsAppEscolar(){
+  const d=state.data, o=state.options;
+  const q=currentPaquete();
+  const materias=(d.materiasArr||[]);
+  const msg=`¡Hola Disink Control! Quiero este paquete de etiquetas escolares 🎒
+*Paquete ${q.nombre}* ($${q.precio})
+Tema: ${temaLimpio()}
+Nombre: ${d.nombre||"—"}
+Escuela: ${d.escuela||"—"}
+Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}
+Maestro(a): ${d.maestro||"—"}
+Teléfono: ${d.tel||"—"}
+Materias (${materias.length}): ${materias.join(", ")||"—"}
+
+Quiero cotizar y dejar mi anticipo para que hagan mi diseño. 🙌`;
   window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, "_blank");
 }
 
