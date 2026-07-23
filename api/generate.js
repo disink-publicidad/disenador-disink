@@ -5,19 +5,13 @@
 // Variables de entorno en Vercel:
 //   OPENAI_API_KEY  (obligatoria)
 //   ALLOWED_ORIGIN  (opcional, ej. "disinkcontrol.online" — candado anti-robo del endpoint)
-//   DIRECTOR_MODEL  (opcional, ej. "gpt-5.6-terra")
-//   IMAGE_MODEL     (opcional, ej. "gpt-image-2")
 // ============================================================
 
-// Cuántas propuestas distintas genera cada clic del cliente.
-// OJO CON EL COSTO: cada imagen en "high" cuesta ~$0.19, así que 3 ≈ ~$0.55 por generación.
-const NUM_PROPUESTAS = 3;
-
 const MARCA_DE_AGUA = `
-MARCA DE AGUA DISCRETA: coloca el texto "DISINK CONTROL · MUESTRA" en diagonal de forma MUY tenue y semitransparente — pocas repeticiones y baja opacidad — visible pero sin tapar ni estorbar el diseño. Es una muestra no final.`;
+MARCA DE AGUA OBLIGATORIA: superpón sobre TODO el diseño el texto "DISINK CONTROL · MUESTRA" repetido varias veces en diagonal, semitransparente, claramente visible. El diseño es una muestra no final.`;
 
 const PRESENTACION = `
-PRESENTACIÓN: presenta el diseño como un MOCKUP FOTOGRÁFICO REALISTA y atractivo, tipo foto de producto de estudio profesional: el producto sobre una superficie elegante (o aplicado en su contexto real), con perspectiva sutil, iluminación suave y sombras naturales realistas. Estética premium tipo portafolio de Behance/Dribbble. Sin manos ni personas. Respeta la proporción y la orientación del producto indicadas.`;
+PRESENTACIÓN: entrega ÚNICAMENTE el diseño plano visto de frente. SIN mockup fotográfico, sin manos, sin mesas, sin perspectiva 3D, sin sombras exageradas. Respeta estrictamente la orientación y proporción indicadas.`;
 
 const CALIDAD = `
 CALIDAD: nivel de estudio de diseño galardonado (estética tipo Behance). Composición con retícula, jerarquía tipográfica impecable, espaciado consistente, alineaciones perfectas, mucho espacio de respiro. Máximo 2 familias tipográficas.
@@ -42,48 +36,25 @@ function styleGuide(s) {
 }
 
 // ============================================================
-// REGLAS INVIOLABLES POR PRODUCTO
-// El "director de arte" reescribe el brief y puede olvidar reglas
-// duras del negocio (proporciones, mate obligatorio, despunte,
-// márgenes, corte de vinil plano...). Estas se REINYECTAN SIEMPRE
-// después del director para que nunca se pierdan.
-// ============================================================
-function reglasDuras(product, d, o) {
-  const dual = product === "tarjetas" && (o.lados || "").includes("vuelta");
-  const reglas = {
-    tarjetas: `Proporción estándar de tarjeta de presentación (~1.75:1). ORIENTACIÓN según la imagen de referencia (vertical u horizontal); si no hay referencia, horizontal. Esquinas/despunte: ${d.despunte || "las 4 esquinas rectas"}. ${dual
-      ? "Se muestran las DOS caras (FRENTE y REVERSO) y acabado MATE OBLIGATORIO (sin brillos plásticos)."
-      : "Una tarjeta protagonista."} Margen interno de seguridad de 4 mm: nada de texto pegado al borde.`,
-    lonas: `Respeta EXACTAMENTE la proporción ${o.medida || "200 x 100 cm"} (ancho x alto). Deja 5 cm de margen perimetral libre de textos y elementos importantes. Máxima legibilidad a distancia; el teléfono debe leerse desde lejos.`,
-    volantes: `Formato ${o.tam || "media carta"} VERTICAL. ${(o.lados || "").includes("vuelta")
-      ? "Frente y vuelta."
-      : "Un solo lado."} Jerarquía: título > oferta > servicios > contacto.`,
-    stickers: `Forma ${o.forma || "circular"} con línea de troquel (contorno de corte) a 2 mm del diseño; el fondo llega hasta el borde del troquel, sin filos blancos. Legible a tamaño real.`,
-    vinil: `TÉCNICA OBLIGATORIA: colores 100% PLANOS y SÓLIDOS (${d.paleta || "los colores indicados"}). PROHIBIDO degradados, sombras, fotografías, texturas o efectos 3D en el DISEÑO. Trazos gruesos y formas cerradas aptas para plotter de corte (grosor mínimo equivalente a 3 mm real).`
-  };
-  return `\nREGLAS INVIOLABLES DEL PRODUCTO (respétalas por encima de cualquier otra cosa): ${reglas[product] || ""}`;
-}
-
-// ============================================================
 // "DIRECTOR DE ARTE" — el truco del JSON, automatizado:
-// antes de generar la imagen, un modelo de visión mira el logo y
-// las referencias, lee el brief y lo reescribe como un prompt
-// visual muchísimo más rico y detallado.
+// antes de generar la imagen, un modelo de visión (gpt-4o-mini)
+// mira el logo y las referencias, lee el brief y lo reescribe
+// como un prompt visual muchísimo más rico y detallado.
 // Puedes afinar sus instrucciones aquí:
 // ============================================================
 const DIRECTOR = `Actúa como director de arte senior de una imprenta profesional.
 Recibirás un BRIEF técnico y posiblemente imágenes (logotipos del cliente y referencias de estilo).
-TU TAREA: reescribe el brief como UN solo prompt de generación de imagen extraordinariamente detallado y visual (máximo 350 palabras): describe la composición exacta zona por zona, el fondo, texturas, estilo tipográfico, tamaños relativos de cada elemento, paleta con códigos de color, y elementos gráficos decorativos concretos. Pide que el resultado sea un MOCKUP fotográfico realista y atractivo (foto de producto de estudio), no un dibujo plano. Estética de estudio de diseño premiado.
+TU TAREA: reescribe el brief como UN solo prompt de generación de imagen extraordinariamente detallado y visual (máximo 350 palabras): describe la composición exacta zona por zona, el fondo, texturas, estilo tipográfico, tamaños relativos de cada elemento, paleta con códigos de color, y elementos gráficos decorativos concretos. Estética de estudio de diseño premiado.
 REGLAS OBLIGATORIAS:
-- Si hay una imagen de REFERENCIA de diseño, tu PRIORIDAD #1 es REPLICARLA: describe con precisión quirúrgica su composición, distribución de elementos, formas, estilo tipográfico, fondos, esquema de color Y SU ORIENTACIÓN (vertical u horizontal), y pide reproducir ese mismo diseño sustituyendo ÚNICAMENTE los textos y logotipos por los del cliente. El resultado debe parecer del mismo diseñador y la misma familia visual que la referencia, no solo "inspirado" en ella.
+- Si hay una imagen de REFERENCIA de diseño, tu PRIORIDAD #1 es REPLICARLA: describe con precisión quirúrgica su composición, distribución de elementos, formas, estilo tipográfico, fondos y esquema de color, y pide reproducir ese mismo diseño sustituyendo textos y logotipos por los del cliente. El resultado debe parecer de la misma familia que la referencia.
 - Conserva TAL CUAL, sin cambiar ni una letra ni un acento, todos los textos entre comillas « » (son datos reales del cliente) y mantenlos entre « ».
-- Conserva las medidas y esquinas indicadas en el brief. La orientación (vertical/horizontal) sigue a la referencia si existe.
+- Conserva la orientación, proporción, medidas y esquinas indicadas en el brief (a menos que la referencia sea claramente vertical y el brief lo permita).
 - Si hay logotipo, indica que se integre tal cual, sin redibujarlo.
 - NO agregues textos nuevos al diseño que no estén en el brief.
 Responde SOLO con el prompt final, sin explicaciones ni comentarios.`;
 
 /* Modelo del director: configúralo en Vercel con la variable DIRECTOR_MODEL
-   (ej. gpt-5.6-terra). Si falla, cae al respaldo. */
+   (ej. el modelo más nuevo disponible en tu cuenta). Si falla, cae al respaldo. */
 async function directorDeArte(apiKey, brief, imgs) {
   const modelos = [...new Set([process.env.DIRECTOR_MODEL || "gpt-4o", "gpt-4o-mini"])];
   const content = [{ type: "text", text: DIRECTOR + "\n\nBRIEF:\n" + brief }];
@@ -93,7 +64,7 @@ async function directorDeArte(apiKey, brief, imgs) {
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages: [{ role: "user", content }], max_tokens: 1000 })
+        body: JSON.stringify({ model, messages: [{ role: "user", content }], max_tokens: 700 })
       });
       if (!r.ok) continue;
       const j = await r.json();
@@ -112,16 +83,44 @@ async function directorDeArte(apiKey, brief, imgs) {
 // cliente. Guarda, haz commit en GitHub y Vercel republica solo.
 // ============================================================
 const PROMPTS = {
+  regreso: (d, o) => {
+    const PAQ = {
+      "Básico · $80":  {nombre:"Básico",  regalo:false, items:[["8","circulares de 6 cm","identificar loncheras, recipientes y accesorios"],["10","rectangulares de 9×5 cm","cuadernos: UNA por materia, con datos completos"],["40","tiras de 5×1 cm","lápices y colores: solo el nombre"]]},
+      "Premium · $130":{nombre:"Premium", regalo:true,  items:[["5","tipo portada (silueta) de 10×15 cm","portadas para identificar en grande"],["15","rectangulares de 9×5 cm","cuadernos: UNA por materia, con datos completos"],["60","tiras de 5×1 cm","lápices y colores: solo el nombre"]]},
+      "Único · $170":  {nombre:"Único",   regalo:true,  items:[["8","tipo portada (silueta) de 15×15 cm","portadas grandes, crea tu estilo"],["15","rectangulares de 10×5 cm","identificar todo, con datos completos"],["75","tiras de 5×1 cm","lápices y colores: solo el nombre"]]}
+    };
+    const q = PAQ[o.paquete] || PAQ["Básico · $80"];
+    const compos = q.items.map(it => `• ${it[0]} etiquetas ${it[1]} — ${it[2]}.`).join("\n");
+    return `Diseña un PAQUETE de ETIQUETAS ESCOLARES personalizadas ("regreso a clases") listo para imprenta profesional (300 DPI, CMYK, con línea de troquel/silueta de corte). Ilustración a todo color estilo sticker premium, muy atractiva y ORDENADA en cuadrícula. NO fotografía.
+PAQUETE ${q.nombre} — contiene EXACTAMENTE:
+${compos}${q.regalo ? "\n• Algunos stickers de regalo del mismo tema." : ""}
+CÓMO SE VE CADA TIPO:
+- Etiquetas de datos (rectangulares): ilustración del tema a un costado + recuadro con el título de la MATERIA arriba y debajo los datos (Nombre, Escuela, Grado, Grupo, Maestro(a), Teléfono). Genera UNA por cada materia: ${d.materias ? d.materias : "(no especificadas)"}.
+- Etiquetas grandes/circulares: ilustración protagonista del tema + el NOMBRE en un listón o marco.
+- Tiras pequeñas: solo el NOMBRE con un mini ícono del tema.
+DATOS (transcríbelos EXACTAMENTE, letra por letra, con acentos y mayúsculas tal cual):
+- Nombre: «${d.nombre || ""}»
+- Escuela: «${d.escuela || ""}»
+- Grado: «${d.grado || ""}»  Grupo: «${d.grupo || ""}»
+- Maestro(a): «${d.maestro || ""}»
+- Teléfono: «${d.tel || ""}»
+${d.extra ? `- Nota: «${d.extra}»` : ""}
+TEMA: todo el paquete inspirado completamente en «${o.tema || "colorido infantil"}». Personajes, íconos y paleta coherentes en TODAS las etiquetas.
+PALETA: ${d.paleta}.
+${d.logoNote || ""} ${d.refNote || ""}
+REGLAS: el NOMBRE y las MATERIAS escritos clarísimo y sin errores; todas las etiquetas del mismo tipo iguales y alineadas; fondo a color hasta el troquel sin filos blancos; apto para niños.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`;
+  },
+
   tarjetas: (d, o) => {
     const dual = (o.lados || "").includes("vuelta");
-    return `Mockup fotográfico realista y premium de una TARJETA DE PRESENTACIÓN lista para imprenta. El ARTE impreso en la tarjeta es vectorial, limpio y de estudio; pero la ESCENA es una foto de producto realista.
-COMPOSICIÓN DE LA ESCENA: ${dual
-      ? "DOS tarjetas del mismo tamaño (FRENTE y REVERSO) sobre una superficie elegante, con perspectiva sutil y sombras realistas; se ven ambas caras del diseño."
-      : "UNA tarjeta protagonista sobre una superficie elegante, con perspectiva sutil y sombra realista."}
-ORIENTACIÓN: sigue la orientación de la imagen de REFERENCIA si existe (vertical u horizontal). Si NO hay referencia, formato horizontal. Proporción estándar de tarjeta de presentación (~1.75:1).
+    return `Diseño gráfico editorial de una TARJETA DE PRESENTACIÓN premium lista para imprenta. Estilo vectorial plano, NO fotografía.
+COMPOSICIÓN DEL LIENZO: ${dual
+      ? "DOS tarjetas HORIZONTALES del mismo tamaño, lado a lado sobre un fondo gris muy claro y uniforme. IZQUIERDA = FRENTE, DERECHA = REVERSO."
+      : "UNA sola tarjeta HORIZONTAL, grande y centrada, sobre un fondo gris muy claro y uniforme."}
+PROPORCIÓN OBLIGATORIA de cada tarjeta: 9 de ancho x 5 de alto (formato horizontal 1.8:1). PROHIBIDO dibujar tarjetas verticales.
 ESQUINAS (despunte): ${d.despunte || "las 4 esquinas rectas"}. Dibuja EXACTAMENTE esas esquinas redondeadas y las demás rectas.
 ESTILO: ${o.estilo || "Moderno"} — ${styleGuide(o.estilo)}.
-ACABADO: ${dual ? "laminado mate" : (o.acabado || "mate")} — no dibujar brillos plásticos exagerados.
+ACABADO: ${dual ? "laminado mate" : (o.acabado || "mate")} — no dibujar brillos plásticos.
 DISTRIBUCIÓN DEL FRENTE (jerarquía estricta, de mayor a menor):
 1) Nombre: «${d.nombre || ""}» — el texto más grande y protagonista, en una sola línea si es posible.
 2) Debajo, pequeño, en mayúsculas con letras espaciadas: «${(d.puesto || d.giro || "")}».
@@ -133,7 +132,7 @@ ${d.logoNote || ""} ${d.refNote || ""}
 REGLAS: margen interno de seguridad equivalente a 4 mm (nada pegado al borde), tipografía de datos perfectamente legible, cero adornos innecesarios, NO agregues ningún texto que no esté entre comillas « ».${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`;
   },
 
-  lonas: (d, o) => `Diseña una LONA PUBLICITARIA de gran formato lista para impresión, presentada como mockup realista.
+  lonas: (d, o) => `Diseña una LONA PUBLICITARIA de gran formato lista para impresión.
 FORMATO: ${o.medida || "200 x 100 cm"} — respeta EXACTAMENTE esta proporción de ancho por alto. Colores saturados estilo CMYK.
 MARGEN PERIMETRAL: deja 5 cm en todo el perímetro completamente libres de textos y elementos importantes${d.ojillos ? ` (llevará ${d.ojillos.split(" ")[0]} ojillos distribuidos uniformemente en las orillas)` : " (zona de bastilla/terminado)"}.
 TERMINADO DE PRODUCCIÓN (NO dibujarlo, solo respetarlo en los márgenes): ${d.terminadoNota || "estándar"}.
@@ -150,10 +149,10 @@ PALETA: ${d.paleta}.
 ${d.logoNote || ""} ${d.refNote || ""}
 REGLAS: máxima legibilidad a distancia, tipografías gruesas, altísimo contraste texto/fondo, el teléfono debe leerse desde un auto en movimiento, máximo 3 zonas de información, NO saturar de texto.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`,
 
-  volantes: (d, o) => `Diseña un VOLANTE PUBLICITARIO (flyer) listo para imprenta, presentado como mockup realista.
+  volantes: (d, o) => `Diseña un VOLANTE PUBLICITARIO (flyer) listo para imprenta.
 FORMATO: ${o.tam || "media carta"}, vertical, 300 dpi, 3 mm de sangrado, colores estilo CMYK.
 LADOS: ${o.lados || "1 lado"}. ${(o.lados || "").includes("vuelta")
-    ? "Diseña FRENTE y VUELTA. Frente: impacto visual con título y oferta. Vuelta: lista de servicios y contacto completo."
+    ? "Diseña FRENTE y VUELTA en el mismo lienzo, lado a lado. Frente: impacto visual con título y oferta. Vuelta: lista de servicios y contacto completo."
     : ""}
 ESTILO: ${o.estilo || "Llamativo"} — ${styleGuide(o.estilo)}.
 CONTENIDO EXACTO, letra por letra (no inventar, no texto de relleno):
@@ -167,7 +166,7 @@ PALETA: ${d.paleta}.
 ${d.logoNote || ""} ${d.refNote || ""}
 REGLAS: jerarquía título > oferta > servicios > contacto, llamado a la acción evidente, zona de contacto al pie con buen contraste.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`,
 
-  stickers: (d, o) => `Diseña un STICKER / ETIQUETA impreso a todo color listo para producción, presentado como mockup realista aplicado en su contexto.
+  stickers: (d, o) => `Diseña un STICKER / ETIQUETA impresa a todo color listo para producción.
 FORMA: ${o.forma || "circular"}. TAMAÑO: ${d.tamCustom || o.tam || "10 cm"}.
 Impresión full color estilo CMYK con línea de troquel (contorno de corte) a 2 mm del diseño; el fondo debe llegar hasta el borde del troquel (sin filos blancos accidentales).
 ESTILO: ${o.estilo || "Moderno"} — ${styleGuide(o.estilo)}.
@@ -179,20 +178,21 @@ PALETA: ${d.paleta}.
 ${d.logoNote || ""} ${d.refNote || ""}
 REGLAS: composición centrada que funcione en la forma indicada, legible a tamaño real, estilo sticker profesional con personalidad.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`,
 
-  vinil: (d, o) => `Diseña un CORTE DE VINIL decorativo listo para plotter de corte, presentado como mockup realista aplicado sobre la superficie.
+  vinil: (d, o) => `Diseña un CORTE DE VINIL decorativo listo para plotter de corte.
 APLICACIÓN: ${o.uso || "pared"}. TAMAÑO: ${d.tamCustom || o.tam || "50 cm"}.
-TÉCNICA OBLIGATORIA: colores 100% PLANOS y SÓLIDOS (${d.paleta}). PROHIBIDO en el DISEÑO: degradados, sombras, fotografías, texturas, efectos 3D. Cada color es una capa de vinil independiente. Trazos gruesos y formas cerradas aptas para corte en plotter (grosor mínimo de trazo equivalente a 3 mm a tamaño real). Silueta limpia estilo vector.
+TÉCNICA OBLIGATORIA: colores 100% PLANOS y SÓLIDOS (${d.paleta}). PROHIBIDO: degradados, sombras, fotografías, texturas, efectos 3D. Cada color es una capa de vinil independiente. Trazos gruesos y formas cerradas aptas para corte en plotter (grosor mínimo de trazo equivalente a 3 mm a tamaño real). Silueta limpia estilo vector.
 ESTILO: ${o.estilo || "Moderno"} — ${styleGuide(o.estilo)}.
 CONTENIDO EXACTO, letra por letra (no inventar):
 - Texto/nombre principal: ${d.negocio || "—"}
 - Objetivo: ${d.giro || "—"}
 - Textos adicionales: ${d.texto2 || "—"}
 ${d.logoNote || ""} ${d.refNote || ""}
-Muestra el diseño aplicado de forma realista sobre la superficie (${o.uso || "pared"}), pero el diseño en sí solo con los colores planos indicados.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`
+Muestra el diseño sobre un fondo neutro claro que simule la superficie (${o.uso || "pared"}), pero el diseño en sí solo con los colores planos indicados.${CALIDAD}${PRESENTACION}${MARCA_DE_AGUA}`
 };
 
 // Proporción de imagen según producto
 const SIZES = {
+  regreso: "1024x1536",
   tarjetas: "1536x1024",
   lonas: "1536x1024",
   volantes: "1024x1536",
@@ -216,16 +216,102 @@ function dataUrlToBlob(u) {
   return new Blob([buf], { type: m[1] });
 }
 
+// ============================================================
+// ETIQUETAS ESCOLARES — PROMPTS DE PRODUCCIÓN (uno por pieza)
+// y cálculo de imposición en hoja de 13×19 pulgadas.
+// Solo se entregan a Disink (modo diseñador con la llave).
+// ============================================================
+function parseMed(sz) {
+  // "10×15 cm" -> {w:10,h:15}; "6 cm" (circular) -> {w:6,h:6}
+  const t = (sz || "").replace(",", ".");
+  const m = t.match(/([\d.]+)\s*[x×X]\s*([\d.]+)/);
+  if (m) return { w: parseFloat(m[1]), h: parseFloat(m[2]) };
+  const c = t.match(/([\d.]+)/);
+  const v = c ? parseFloat(c[1]) : 5;
+  return { w: v, h: v };
+}
+function fitPerSheet(w, h) {
+  // Hoja 13×19 pulgadas = 33.02 × 48.26 cm, con 0.4 cm de separación
+  const SW = 33.02, SH = 48.26, g = 0.4;
+  if (!w || !h) return 0;
+  const a = Math.floor((SW + g) / (w + g)) * Math.floor((SH + g) / (h + g));
+  const b = Math.floor((SW + g) / (h + g)) * Math.floor((SH + g) / (w + g)); // rotada
+  return Math.max(a, b, 0);
+}
+function planImpresion(tipos) {
+  // tipos: [{nombre, n, med}]
+  let total = 0;
+  const lineas = tipos.map(t => {
+    const { w, h } = parseMed(t.med);
+    const per = fitPerSheet(w, h);
+    const hojas = per > 0 ? Math.ceil(t.n / per) : 1;
+    total += hojas;
+    return `- ${t.nombre}: ${t.n} pza(s) de ${t.med} · caben ~${per} por hoja → ${hojas} hoja(s).`;
+  });
+  return `PLAN DE IMPRESIÓN (hoja de 13×19 pulgadas = 33 × 48 cm):
+${lineas.join("\n")}
+TOTAL ESTIMADO: ${total} hoja(s) de 13×19". Si aumentan las cantidades y no caben, este cálculo ya anexa las hojas necesarias.
+NOTA: el acomodo final lo haces tú en tu software duplicando cada diseño a su medida exacta (no lo genera la IA).`;
+}
+function escolarPrompts(d, o) {
+  const tema = o.tema || "colorido infantil";
+  const nombre = d.nombre || "";
+  const portN = d.portN || "5";
+  const portMed = d.portMed || "10×15 cm";
+  const portForma = d.portForma || "tipo portada (silueta)";
+  const matMed = d.matMed || "9×5 cm";
+  const tiraN = d.tiraN || "40";
+  const tiraMed = d.tiraMed || "5×1 cm";
+  const materias = d.materias || "(sin materias especificadas)";
+  const matN = d.materias ? d.materias.split(",").filter(x => x.trim()).length : 0;
+  const base = `Estilo: ilustración a todo color estilo sticker premium, tema «${tema}». Impresión profesional 300 DPI, CMYK, con línea de troquel/silueta de corte a 2 mm, fondo a color hasta el borde del corte (sin filos blancos). Transcribe cada texto entre « » EXACTAMENTE letra por letra. SIN marcas de agua.`;
+
+  const portada = `PIEZA 1 de 3 — PORTADA / CUADERNO.
+Diseña UNA sola etiqueta ${portForma} de ${portMed}. ${base}
+Contenido: una ilustración protagonista del tema como fondo/centro y el NOMBRE «${nombre}» en un listón o marco decorativo, grande y bien legible.
+Entrega UNA pieza limpia (se imprimirán ${portN} copias iguales).`;
+
+  const materia = `PIEZA 2 de 3 — ETIQUETAS DE MATERIAS (cuadernos).
+Diseña un JUEGO de etiquetas rectangulares de ${matMed}, TODAS con el mismo layout y estilo, una por cada materia, acomodadas en cuadrícula. ${base}
+Cada etiqueta lleva la ilustración del tema a un costado y un recuadro con el TÍTULO de la materia arriba y debajo estos datos idénticos:
+- Nombre: «${nombre}»
+- Escuela: «${d.escuela || ""}»
+- Grado: «${d.grado || ""}»  Grupo: «${d.grupo || ""}»
+- Maestro(a): «${d.maestro || ""}»
+- Teléfono: «${d.tel || ""}»
+Genera UNA etiqueta por cada materia (${matN} en total): ${materias}.`;
+
+  const tira = `PIEZA 3 de 3 — TIRAS PARA LÁPICES Y COLORES.
+Diseña UNA sola tira horizontal de ${tiraMed}. ${base}
+Contenido: solo el NOMBRE «${nombre}» con un mini ícono del tema, muy legible a tamaño pequeño.
+Entrega UNA pieza limpia (se imprimirán ${tiraN} copias iguales).`;
+
+  const plan = planImpresion([
+    { nombre: "Portadas/cuadernos", n: parseInt(portN) || 0, med: portMed },
+    { nombre: "Materias (9×5)", n: matN, med: matMed },
+    { nombre: "Lápices y colores", n: parseInt(tiraN) || 0, med: tiraMed }
+  ]);
+
+  return { portada, materia, tira, plan };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
-  // Candado de origen: evita que otros sitios usen tu endpoint (y gasten tu saldo)
+  // Candado de origen: evita que OTROS sitios usen tu endpoint (y gasten tu saldo).
+  // Permite: (a) peticiones del MISMO sitio (cualquier deploy tuyo en Vercel:
+  // producción o preview), y (b) los dominios listados en ALLOWED_ORIGIN
+  // (separados por coma). Bloquea solo orígenes externos.
   const allowed = process.env.ALLOWED_ORIGIN;
   if (allowed) {
     const origin = req.headers.origin || req.headers.referer || "";
-    if (!origin.includes(allowed)) {
+    const host = req.headers.host || "";                 // dominio que el usuario abrió
+    const sameOrigin = host && origin.includes(host);    // mismo sitio (prod o preview)
+    const lista = allowed.split(",").map(a => a.trim()).filter(Boolean);
+    const enLista = lista.some(a => origin.includes(a));
+    if (!sameOrigin && !enLista) {
       return res.status(403).json({ error: "Origen no autorizado" });
     }
   }
@@ -235,7 +321,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Falta configurar OPENAI_API_KEY en Vercel" });
   }
 
-  const { product, options = {}, data = {}, logo = null, logo2 = null, refs = [] } = req.body || {};
+  const { product, options = {}, data = {}, logo = null, logo2 = null, refs = [], studio = null } = req.body || {};
   const builder = PROMPTS[product];
   if (!builder) {
     return res.status(400).json({ error: "Producto inválido" });
@@ -244,7 +330,7 @@ export default async function handler(req, res) {
   // Sanitizar todo lo que viene del cliente
   const o = {}, d = {};
   for (const [k, v] of Object.entries(options)) o[k] = limpiar(v, k === "estiloCustom" ? 140 : 80);
-  for (const [k, v] of Object.entries(data)) d[k] = limpiar(v, k === "servicios" || k === "texto2" ? 500 : 200);
+  for (const [k, v] of Object.entries(data)) d[k] = limpiar(v, (k === "servicios" || k === "texto2" || k === "materias") ? 500 : 200);
 
   // Estilo personalizado escrito por el cliente
   if (o.estilo === "Otro" && o.estiloCustom) o.estilo = o.estiloCustom;
@@ -259,51 +345,31 @@ export default async function handler(req, res) {
 
   let prompt = builder(d, o);
 
-  // Imágenes adjuntas: REFERENCIAS PRIMERO (para que manden la composición), luego logos.
-  // En /images/edits, gpt-image le da más peso a las primeras imágenes; por eso, si hay
-  // referencia de diseño, va al frente y se le pide REPLICARLA, no solo "inspirarse".
+  // Imágenes adjuntas: logo real + hasta 2 referencias
   const images = [];
   const notas = [];
-
-  const refBlobs = (Array.isArray(refs) ? refs.slice(0, 2) : [])
-    .map(dataUrlToBlob)
-    .filter(Boolean);
-  refBlobs.forEach((b) => {
-    images.push(b);
-    notas.push(`la imagen ${images.length} es la REFERENCIA de diseño: REPLICA su composición, distribución de elementos, formas, estilo tipográfico, esquema de color y su ORIENTACIÓN (vertical u horizontal); sustituye ÚNICAMENTE los textos y el logotipo por los del cliente. Debe parecer de la misma familia visual que esta referencia`);
-  });
-
   const logoBlob = dataUrlToBlob(logo);
-  if (logoBlob) {
-    images.push(logoBlob);
-    notas.push(`la imagen ${images.length} es el LOGOTIPO REAL del cliente para el FRENTE: intégralo tal cual, sin redibujarlo`);
-  }
-
+  if (logoBlob) { images.push(logoBlob); notas.push("la imagen 1 es el LOGOTIPO REAL del cliente para el FRENTE: intégralo tal cual, sin redibujarlo"); }
   const logo2Blob = dataUrlToBlob(logo2);
-  if (logo2Blob) {
-    images.push(logo2Blob);
-    notas.push(`la imagen ${images.length} es el logotipo para el REVERSO: úsalo solo en el reverso, tal cual, sin redibujarlo`);
-  }
-
+  if (logo2Blob) { images.push(logo2Blob); notas.push(`la imagen ${images.length} es el logotipo para el REVERSO: úsalo solo en el reverso, tal cual, sin redibujarlo`); }
+  (Array.isArray(refs) ? refs.slice(0, 2) : []).forEach(u => {
+    const b = dataUrlToBlob(u);
+    if (b) { images.push(b); notas.push(`la imagen ${images.length} es una REFERENCIA de estilo: úsala solo como inspiración visual`); }
+  });
   if (notas.length) prompt += `\nIMÁGENES ADJUNTAS: ${notas.join("; ")}.`;
 
   // Paso "director de arte": enriquece el brief mirando logo y referencias
-  const dirImgs = [...(Array.isArray(refs) ? refs.slice(0, 2) : []), logo, logo2]
+  const dirImgs = [logo, logo2, ...(Array.isArray(refs) ? refs.slice(0, 2) : [])]
     .filter(u => typeof u === "string" && u.startsWith("data:image"));
   const enriquecido = await directorDeArte(apiKey, prompt, dirImgs);
-  // Aunque el director reescriba el brief, REINYECTAMOS las reglas duras del producto
-  // para que nunca se pierdan (proporciones, mate dual, despunte, vinil plano, etc.).
-  if (enriquecido) prompt = enriquecido + reglasDuras(product, d, o) + CALIDAD + PRESENTACION + MARCA_DE_AGUA;
+  if (enriquecido) prompt = enriquecido + CALIDAD + PRESENTACION + MARCA_DE_AGUA;
 
-  const modelImg = process.env.IMAGE_MODEL || "gpt-image-1";
-
-  // Genera UNA imagen (con o sin imágenes de entrada). "quality: high" ≈ $0.19/img.
-  async function generarUna() {
+  try {
     let r;
     if (images.length) {
       // Con imágenes → endpoint de edición (acepta imágenes de entrada)
       const form = new FormData();
-      form.append("model", modelImg);
+      form.append("model", process.env.IMAGE_MODEL || "gpt-image-1");
       form.append("prompt", prompt);
       form.append("size", size);
       form.append("quality", "high");
@@ -318,34 +384,39 @@ export default async function handler(req, res) {
       // Solo texto → endpoint de generación
       r = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: modelImg, prompt, size, quality: "high", n: 1 })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: process.env.IMAGE_MODEL || "gpt-image-1",
+          prompt,
+          size,
+          quality: "high", // "high" = texto mucho más limpio (~$0.19/img) · "medium" ~$0.06 · "low" ~$0.02
+          n: 1
+        })
       });
     }
+
     const out = await r.json();
-    if (!r.ok) throw new Error(out?.error?.message || "Error en la API de OpenAI");
-    const b64 = out.data?.[0]?.b64_json;
-    return b64 ? `data:image/png;base64,${b64}` : null;
-  }
 
-  try {
-    // Generamos las NUM_PROPUESTAS EN PARALELO: el tiempo total es ~el de una sola
-    // imagen (cabe en el maxDuration de 60s) en vez de sumarse una tras otra.
-    const resultados = await Promise.allSettled(
-      Array.from({ length: NUM_PROPUESTAS }, () => generarUna())
-    );
-    const imgs = resultados
-      .filter(x => x.status === "fulfilled" && x.value)
-      .map(x => x.value);
-
-    if (!imgs.length) {
-      const primerError = resultados.find(x => x.status === "rejected");
-      return res.status(502).json({ error: primerError?.reason?.message || "La API no devolvió imagen" });
+    if (!r.ok) {
+      const msg = out?.error?.message || "Error en la API de OpenAI";
+      return res.status(502).json({ error: msg });
     }
 
-    // OJO: nunca devolvemos el prompt al navegador — solo las imágenes.
-    // Devolvemos el arreglo completo (varias propuestas) y también la primera por compatibilidad.
-    return res.status(200).json({ images: imgs, image: imgs[0] });
+    const b64 = out.data?.[0]?.b64_json;
+    if (!b64) return res.status(502).json({ error: "La API no devolvió imagen" });
+
+    // Por defecto NUNCA devolvemos el prompt al navegador — solo la imagen.
+    // Excepción "modo diseñador": si el visitante trae la clave secreta STUDIO_KEY
+    // (URL ?studio=...), le devolvemos también el prompt para pegarlo en ChatGPT.
+    const resp = { image: `data:image/png;base64,${b64}` };
+    if (process.env.STUDIO_KEY && studio && studio === process.env.STUDIO_KEY) {
+      if (product === "regreso") resp.prompts = escolarPrompts(d, o);
+      else resp.prompt = prompt;
+    }
+    return res.status(200).json(resp);
   } catch (e) {
     return res.status(500).json({ error: e.message || "Error inesperado" });
   }
