@@ -258,6 +258,7 @@ footer b{color:var(--magenta)}
 const WHATSAPP = "5213241206466"; // ← tu número con código de país (verifica que sea tu WhatsApp)
 const MAX_IA_POR_DIA = 3;         // límite de generaciones IA por visitante
 const MAX_IA_REGRESO = 1;          // etiquetas escolares: 1 referencia (alta calidad)
+const CLIENTE_PUEDE_GENERAR = false; // 🔒 apagado: el cliente NO genera imágenes (se prende cuando Stripe gatee el pago). Disink (con llave) siempre puede.
 const STUDIO_KEY = new URLSearchParams(location.search).get("studio") || ""; // modo diseñador: ?studio=TUCLAVE revela el prompt para pegarlo en ChatGPT
 
 /* Los PROMPTS ya NO viven aquí: están ocultos en el servidor (api/generate.js).
@@ -936,18 +937,25 @@ function setupResultActions(){
   const actions=document.getElementById("aiActions");
   const notice=document.getElementById("resultNotice");
   const wa=document.getElementById("waBtn");
+  const disink = !!STUDIO_KEY;                       // Disink (con llave) siempre puede generar
+  const clientePuede = disink || CLIENTE_PUEDE_GENERAR;
   if(state.product==="regreso"){
-    const disink = !!STUDIO_KEY;   // solo Disink (con la llave) ve el prompt
     if(actions) actions.innerHTML = disink
       ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🎨 Generar + obtener prompt (Disink 🔒)</button>`
-      : `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Ver mi diseño (referencia)</button>`;
+      : (CLIENTE_PUEDE_GENERAR
+          ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Ver mi diseño (referencia)</button>`
+          : ``);
     if(notice) notice.innerHTML = disink
       ? `<b>Modo Disink 🔒</b> — al generar obtienes la referencia y el <b>prompt</b> para pegar en ChatGPT. El prompt viene del servidor y solo se muestra con la llave; el cliente nunca lo ve.`
-      : `Lo que ves es una <b>referencia con marca de agua</b>. Tu <b>diseño final</b>, en alta calidad y sin marca de agua, te lo entregamos al confirmar tu pago. Manda tus datos por WhatsApp para cotizar.`;
+      : `Arma tu pedido y mándanos tus datos por WhatsApp. Tu <b>diseño</b> lo preparamos nosotros al confirmar tu paquete; recibirás el archivo final en alta calidad. Arriba tienes un boceto de cómo se acomodará.`;
     if(wa) wa.textContent="📲 Enviar mis datos por WhatsApp";
   } else {
-    if(actions) actions.innerHTML=`<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>`;
-    if(notice) notice.innerHTML=`Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.`;
+    if(actions) actions.innerHTML = clientePuede
+      ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>`
+      : ``;
+    if(notice) notice.innerHTML = clientePuede
+      ? `Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.`
+      : `Arma tu pedido y cotiza por WhatsApp. El diseño final lo preparamos nosotros al confirmar tu pedido.`;
     if(wa) wa.textContent="✅ Me gusta, cotizar por WhatsApp";
   }
 }
