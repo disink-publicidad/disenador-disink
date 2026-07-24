@@ -944,10 +944,10 @@ function setupResultActions(){
       ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🎨 Generar + obtener prompt (Disink 🔒)</button>`
       : (CLIENTE_PUEDE_GENERAR
           ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Ver mi diseño (referencia)</button>`
-          : ``);
+          : `<button class="btn cyan" id="payBtn" onclick="pagarPaquete()">💳 Pagar mi paquete y hacer pedido</button>`);
     if(notice) notice.innerHTML = disink
       ? `<b>Modo Disink 🔒</b> — al generar obtienes la referencia y el <b>prompt</b> para pegar en ChatGPT. El prompt viene del servidor y solo se muestra con la llave; el cliente nunca lo ve.`
-      : `Arma tu pedido y mándanos tus datos por WhatsApp. Tu <b>diseño</b> lo preparamos nosotros al confirmar tu paquete; recibirás el archivo final en alta calidad. Arriba tienes un boceto de cómo se acomodará.`;
+      : `Al pagar tu paquete, nuestros <b>diseñadores</b> crean tu diseño en alta calidad y te enviamos el boceto por WhatsApp para aprobar antes de imprimir. El de arriba es solo un boceto ilustrativo.`;
     if(wa) wa.textContent="📲 Enviar mis datos por WhatsApp";
   } else {
     if(actions) actions.innerHTML = clientePuede
@@ -1169,7 +1169,10 @@ function renderPreview(){
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center">${tiras}<span style="font-size:.55rem;color:#555;font-weight:800">×${state.data.tiraN||q.items[2].n}</span></div>
         ${WM}
       </div>
-      <p class="hint" style="margin-top:8px;text-align:center">Boceto del acomodo — la ilustración final del tema la genera ChatGPT con tu prompt</p>
+      <div style="margin-top:10px;text-align:center;background:#2a1e2b;border:1.5px solid var(--magenta);border-radius:10px;padding:11px 14px">
+        <b style="color:var(--yellow)">⚠️ Este boceto NO es un diseño de Disink Publicidad</b><br>
+        <span style="font-size:.82rem">Es solo una idea ilustrativa de cómo se acomodaría. El diseño real lo hacen nuestros diseñadores — <b>espera la magia ✨</b></span>
+      </div>
     </div>`;
   }
 
@@ -1401,6 +1404,59 @@ Quiero cotizar y dejar mi anticipo para que hagan mi diseño. 🙌`;
   window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, "_blank");
 }
 
+/* ---------- PAGO CON STRIPE ---------- */
+async function pagarPaquete(){
+  collectData();
+  const paquete = state.options.paquete || "Básico · $80";
+  try{ localStorage.setItem("dc_order", JSON.stringify({product:state.product, options:state.options, data:state.data, colorCount:state.colorCount, colors:state.colors})); }catch(e){}
+  const btn = document.getElementById("payBtn");
+  if(btn){ btn.disabled=true; btn.textContent="Redirigiendo a pago…"; }
+  try{
+    const res = await fetch("/api/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ product:state.product, paquete }) });
+    const j = await res.json();
+    if(!res.ok || j.error) throw new Error(j.error || "Error al iniciar el pago");
+    location.href = j.url;
+  }catch(e){
+    alert("No se pudo iniciar el pago: "+e.message+"\n\nRevisa que STRIPE_SECRET_KEY esté configurada en Vercel.");
+    if(btn){ btn.disabled=false; btn.textContent="💳 Pagar mi paquete y hacer pedido"; }
+  }
+}
+
+async function checarRetornoPago(){
+  const sp = new URLSearchParams(location.search);
+  const sid = sp.get("paid");
+  if(!sid) return;
+  try{
+    const r = await fetch("/api/checkout?session_id="+encodeURIComponent(sid));
+    const j = await r.json();
+    if(j && j.paid){
+      let order=null; try{ order=JSON.parse(localStorage.getItem("dc_order")||"null"); }catch(e){}
+      mostrarConfirmacion(order, sid);
+    }
+  }catch(e){ /* silencio */ }
+}
+
+function mostrarConfirmacion(order, sid){
+  const main = document.querySelector("main");
+  const d = (order && order.data) || {};
+  const o = (order && order.options) || {};
+  const materias = (d.materiasArr||[]);
+  const tema = (o.tema||"").replace(/^Otro:\s*/i,"");
+  const msg = `¡Hola Disink Control! Ya PAGUÉ mi paquete de etiquetas escolares ✅\n*${o.paquete||""}*\nRef. de pago: ${(sid||"").slice(-8)}\nTema: ${tema}\nNombre: ${d.nombre||"—"}\nEscuela: ${d.escuela||"—"}  Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}\nMaestro(a): ${d.maestro||"—"}  Tel: ${d.tel||"—"}\nMaterias (${materias.length}): ${materias.join(", ")||"—"}\nQuedo al pendiente de mi diseño. ¡Gracias!`;
+  const wa = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
+  main.innerHTML = `<div style="max-width:560px;margin:40px auto;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:34px 26px">
+    <div style="font-size:3rem">✅</div>
+    <h1 style="margin:8px 0">¡Pago confirmado!</h1>
+    <p class="sub" style="margin-bottom:8px">Gracias${d.nombre?", tu pedido para <b>"+esc(d.nombre)+"</b>":""} quedó registrado.</p>
+    <p class="hint" style="margin-bottom:22px">Ahora mándanos tu pedido por WhatsApp y nuestros diseñadores preparan tu diseño en alta calidad. Te enviamos el boceto para tu aprobación antes de imprimir.</p>
+    <a class="btn primary" style="display:inline-block;text-decoration:none" href="${wa}" target="_blank">📲 Enviar mi pedido por WhatsApp</a>
+    <div style="margin-top:16px"><a class="btn ghost" style="display:inline-block;text-decoration:none" href="/">↺ Hacer otro pedido</a></div>
+  </div>`;
+  try{ localStorage.removeItem("dc_order"); }catch(e){}
+  try{ history.replaceState({}, "", "/"); }catch(e){}
+  window.scrollTo({top:0});
+}
+
 function restart(){
   state = { product:null, options:{}, data:{}, logoDataUrl:null, logo2DataUrl:null, refDataUrls:[], colorCount:null, colors:[], summary:[], despuntes:{} };
   builtProduct = null;
@@ -1410,6 +1466,9 @@ function restart(){
   document.getElementById("refThumbs").innerHTML = "";
   goStep(1);
 }
+
+checkarRetornoPagoSafe();
+function checkarRetornoPagoSafe(){ try{ checarRetornoPago(); }catch(e){} }
 </script>
 </body>
 </html>
