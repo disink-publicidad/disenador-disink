@@ -38,34 +38,54 @@ function promptsBase(order){
   return { portada, materia, tira, plan };
 }
 
-// Mejora los prompts con IA (texto). Si falla, regresa los base.
-async function mejorarConIA(base, order){
+// ---- STICKERS (1 diseño) ----
+const STICKER_TPL = `Diseña UN sticker adhesivo full color, listo para imprenta profesional: 300 DPI, color CMYK. Tamaño {{tam}}. Forma: {{forma}}. {{troquel}}
+Fondo a color hasta la orilla (sangrado, sin filos blancos). Estilo visual: {{estilo}}.
+Contenido: texto principal «{{texto}}». {{texto2}}Idea/uso: «{{giro}}».
+Usa la imagen de referencia que subió el cliente como base/guía visual, respetándola lo más posible.
+Transcribe los textos entre « » EXACTAMENTE. Entrega UN solo diseño de sticker limpio, sin marcas de agua.`;
+function fillTpl(t,v){ return (t||"").replace(/\{\{(\w+)\}\}/g,(m,k)=>v[k]!=null?v[k]:""); }
+function promptsStickers(order, tplOverride){
+  const d=order.data||{}, o=order.options||{};
+  const forma=o.forma||"circular";
+  const troquel=/troquel/i.test(forma)
+    ? "TROQUELADO: incluye un contorno negro delgado alrededor de la silueta como línea de corte (para cortar más rápido)."
+    : "Corte limpio según la forma indicada.";
+  const vals={
+    tam: d.tamCustom || o.tam || "10 cm",
+    forma, estilo:o.estilo||"Moderno", troquel,
+    texto: d.negocio||"",
+    texto2: d.texto2? `Texto secundario «${d.texto2}». `:"",
+    giro: d.giro||""
+  };
+  const tpl=(tplOverride && tplOverride.trim())?tplOverride:STICKER_TPL;
+  const sticker=fillTpl(tpl, vals);
+  const plan=`IMPRESIÓN: hoja de adherible de 13×19 pulgadas (o DTF UV de 28 cm de ancho). Acomoda la cantidad del paquete en la hoja aprovechando el material.`;
+  return { sticker, plan };
+}
+
+// Mejora los prompts con IA (texto, genérico). Si falla, regresa los base.
+async function mejorar(base, contexto){
   const key = process.env.OPENAI_API_KEY;
   if(!key) return base;
   const model = process.env.PROMPT_MODEL || "gpt-4o-mini";
-  const instru = `Eres director de arte senior de una imprenta. Recibirás 3 prompts base para generar etiquetas escolares. Reescríbelos para que sean MUCHO más profesionales, detallados y específicos (composición, tipografía, paleta acorde al tema, elementos decorativos), pero SIN cambiar ni una letra de los textos entre « » (son datos reales del cliente), y conservando medidas, cantidades y reglas. Devuelve EXCLUSIVAMENTE un JSON válido con las claves "portada", "materia", "tira" (strings). Nada más.`;
+  const keys = Object.keys(base).filter(k=>k!=="plan");
+  if(!keys.length) return base;
+  const instru = `Eres director de arte senior de una imprenta. Recibirás uno o varios prompts base para generar diseños. Reescribe CADA uno para que sea mucho más profesional, detallado y específico (composición, tipografía, paleta, elementos gráficos), SIN cambiar ni una letra de los textos entre « » (son datos reales del cliente) y conservando medidas, cantidades y reglas técnicas. Devuelve EXCLUSIVAMENTE un JSON con estas claves string: ${keys.map(k=>`"${k}"`).join(", ")}. Nada más.`;
+  const userMsg = keys.map(k=>`[${k.toUpperCase()}]\n${base[k]}`).join("\n\n") + (contexto?`\n\nContexto/tema: ${contexto}`:"");
   try{
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method:"POST",
       headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        messages:[
-          { role:"system", content:instru },
-          { role:"user", content:`TEMA: ${(order.options||{}).tema||""}\n\nPORTADA:\n${base.portada}\n\nMATERIA:\n${base.materia}\n\nTIRA:\n${base.tira}` }
-        ],
-        response_format:{ type:"json_object" },
-        temperature:0.5,
-        max_tokens:1600
-      })
+      body: JSON.stringify({ model, messages:[{role:"system",content:instru},{role:"user",content:userMsg}], response_format:{type:"json_object"}, temperature:0.5, max_tokens:1600 })
     });
     if(!r.ok) return base;
     const j = await r.json();
-    const txt = j.choices?.[0]?.message?.content;
-    const p = JSON.parse(txt);
-    if(p && p.portada && p.materia && p.tira) return { portada:p.portada, materia:p.materia, tira:p.tira, plan:base.plan };
-  }catch(e){ /* usa base */ }
-  return base;
+    const p = JSON.parse(j.choices?.[0]?.message?.content||"{}");
+    const out = { ...base };
+    keys.forEach(k=>{ if(p[k] && typeof p[k]==="string") out[k]=p[k]; });
+    return out;
+  }catch(e){ return base; }
 }
 
 async function stripePaid(sid, key){
@@ -109,18 +129,26 @@ export default async function handler(req, res){
     if(dup.ok && Array.isArray(dup.json) && dup.json.length){
       return res.status(200).json({ ok:true, id: dup.json[0].id, dup:true });
     }
-    // 3) generar prompts (base + mejora IA)
-    const base = promptsBase(order);
-    const prompts = await mejorarConIA(base, order);
-    // 4) guardar
+    // 3) config de prompts editable (Recepción)
+    let promptsCfg = {};
+    try{ const a = await sb("GET","ajustes?id=eq.1&select=prompts"); if(a.ok && Array.isArray(a.json) && a.json[0]) promptsCfg = a.json[0].prompts || {}; }catch(e){}
+    // 4) generar prompts según el PRODUCTO
     const d = order.data||{}, o = order.options||{};
-    const row = {
-      session_id,
-      paquete: o.paquete || "",
-      estado: "pagado",
-      data: { nombre:d.nombre, escuela:d.escuela, grado:d.grado, grupo:d.grupo, maestro:d.maestro, tel:d.tel, tema:(o.tema||"").replace(/^Otro:\s*/i,""), materias:(d.materiasArr||[]) },
-      prompts
-    };
+    const product = order.product || "regreso";
+    const contacto = { cliente:d.cliente, cliente_tel:d.cliente_tel };
+    let base, titulo, dataRow;
+    if(product==="stickers"){
+      base = promptsStickers(order, promptsCfg.stickers);
+      const k=(o.tam||"").toLowerCase(); const nom=k.includes("chico")?"Chico":k.includes("mediano")?"Mediano":k.includes("grande")?"Grande":(o.tam||"medida");
+      titulo = `Stickers · ${nom}`;
+      dataRow = { ...contacto, producto:"stickers", negocio:d.negocio, giro:d.giro, texto2:d.texto2, forma:o.forma, tam:(d.tamCustom||o.tam), estilo:o.estilo, refImgs:(order.refImgs||[]) };
+    } else {
+      base = promptsBase(order);
+      titulo = o.paquete || "";
+      dataRow = { ...contacto, producto:"regreso", nombre:d.nombre, escuela:d.escuela, grado:d.grado, grupo:d.grupo, maestro:d.maestro, tel:d.tel, tema:(o.tema||"").replace(/^Otro:\s*/i,""), materias:(d.materiasArr||[]), refImgs:(order.refImgs||[]) };
+    }
+    const prompts = await mejorar(base, o.tema || o.estilo || "");
+    const row = { session_id, paquete: titulo, estado: "pagado", data: dataRow, prompts };
     const ins = await sb("POST", "pedidos", row);
     if(!ins.ok) return res.status(502).json({ error:"No se pudo guardar el pedido" });
     const id = Array.isArray(ins.json) && ins.json[0] ? ins.json[0].id : null;
