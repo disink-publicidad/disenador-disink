@@ -948,7 +948,7 @@ function setupResultActions(){
     if(notice) notice.innerHTML = disink
       ? `<b>Modo Disink 🔒</b> — al generar obtienes la referencia y el <b>prompt</b> para pegar en ChatGPT. El prompt viene del servidor y solo se muestra con la llave; el cliente nunca lo ve.`
       : `Al pagar tu paquete, nuestros <b>diseñadores</b> crean tu diseño en alta calidad y te enviamos el boceto por WhatsApp para aprobar antes de imprimir. El de arriba es solo un boceto ilustrativo.`;
-    if(wa) wa.textContent="📲 Enviar mis datos por WhatsApp";
+    if(wa){ wa.textContent="📲 Enviar mis datos por WhatsApp"; wa.style.display="none"; } // regreso: solo se paga; WhatsApp aparece tras el pago
   } else {
     if(actions) actions.innerHTML = clientePuede
       ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>`
@@ -956,7 +956,7 @@ function setupResultActions(){
     if(notice) notice.innerHTML = clientePuede
       ? `Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.`
       : `Arma tu pedido y cotiza por WhatsApp. El diseño final lo preparamos nosotros al confirmar tu pedido.`;
-    if(wa) wa.textContent="✅ Me gusta, cotizar por WhatsApp";
+    if(wa){ wa.textContent="✅ Me gusta, cotizar por WhatsApp"; wa.style.display=""; }
   }
 }
 
@@ -1426,29 +1426,41 @@ async function checarRetornoPago(){
   const sp = new URLSearchParams(location.search);
   const sid = sp.get("paid");
   if(!sid) return;
+  const main = document.querySelector("main");
+  main.innerHTML = `<div style="max-width:520px;margin:60px auto;text-align:center"><div class="spinner"></div><p class="hint" style="margin-top:10px">Confirmando tu pago y registrando tu pedido…</p></div>`;
   try{
     const r = await fetch("/api/checkout?session_id="+encodeURIComponent(sid));
     const j = await r.json();
-    if(j && j.paid){
-      let order=null; try{ order=JSON.parse(localStorage.getItem("dc_order")||"null"); }catch(e){}
-      mostrarConfirmacion(order, sid);
+    if(!(j && j.paid)){
+      main.innerHTML = `<div style="max-width:520px;margin:60px auto;text-align:center"><h2>No pudimos confirmar el pago</h2><p class="hint" style="margin:10px 0 18px">Si ya pagaste, contáctanos por WhatsApp y con gusto te ayudamos.</p><a class="btn primary" style="text-decoration:none" href="/">Volver</a></div>`;
+      return;
     }
-  }catch(e){ /* silencio */ }
+    let order=null; try{ order=JSON.parse(localStorage.getItem("dc_order")||"null"); }catch(e){}
+    let folio=null;
+    try{
+      const rr = await fetch("/api/order", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ session_id:sid, order }) });
+      const jj = await rr.json();
+      if(jj && jj.id) folio = jj.id;
+    }catch(e){ /* el pedido igual se puede atender por WhatsApp */ }
+    mostrarConfirmacion(order, sid, folio);
+  }catch(e){ mostrarConfirmacion(null, sid, null); }
 }
 
-function mostrarConfirmacion(order, sid){
+function mostrarConfirmacion(order, sid, folio){
   const main = document.querySelector("main");
   const d = (order && order.data) || {};
   const o = (order && order.options) || {};
   const materias = (d.materiasArr||[]);
   const tema = (o.tema||"").replace(/^Otro:\s*/i,"");
-  const msg = `¡Hola Disink Control! Ya PAGUÉ mi paquete de etiquetas escolares ✅\n*${o.paquete||""}*\nRef. de pago: ${(sid||"").slice(-8)}\nTema: ${tema}\nNombre: ${d.nombre||"—"}\nEscuela: ${d.escuela||"—"}  Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}\nMaestro(a): ${d.maestro||"—"}  Tel: ${d.tel||"—"}\nMaterias (${materias.length}): ${materias.join(", ")||"—"}\nQuedo al pendiente de mi diseño. ¡Gracias!`;
+  const folioTxt = folio ? `Pedido #${folio}` : `Ref. ${(sid||"").slice(-8)}`;
+  const msg = `¡Hola Disink Control! Ya PAGUÉ mi paquete de etiquetas escolares ✅\n${folioTxt}\n*${o.paquete||""}*\nTema: ${tema}\nNombre: ${d.nombre||"—"}\nEscuela: ${d.escuela||"—"}  Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}\nMaestro(a): ${d.maestro||"—"}  Tel: ${d.tel||"—"}\nMaterias (${materias.length}): ${materias.join(", ")||"—"}\nQuedo al pendiente de mi diseño. ¡Gracias!`;
   const wa = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
   main.innerHTML = `<div style="max-width:560px;margin:40px auto;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:34px 26px">
     <div style="font-size:3rem">✅</div>
     <h1 style="margin:8px 0">¡Pago confirmado!</h1>
+    ${folio?`<div style="display:inline-block;background:#2a1e2b;border:1px solid var(--magenta);border-radius:99px;padding:5px 16px;color:var(--yellow);font-weight:700;margin-bottom:8px">Pedido #${folio}</div>`:""}
     <p class="sub" style="margin-bottom:8px">Gracias${d.nombre?", tu pedido para <b>"+esc(d.nombre)+"</b>":""} quedó registrado.</p>
-    <p class="hint" style="margin-bottom:22px">Ahora mándanos tu pedido por WhatsApp y nuestros diseñadores preparan tu diseño en alta calidad. Te enviamos el boceto para tu aprobación antes de imprimir.</p>
+    <p class="hint" style="margin-bottom:22px">Da un toque al botón para avisarnos por WhatsApp. Nuestros diseñadores preparan tu diseño en alta calidad y te enviamos el boceto para tu aprobación antes de imprimir.</p>
     <a class="btn primary" style="display:inline-block;text-decoration:none" href="${wa}" target="_blank">📲 Enviar mi pedido por WhatsApp</a>
     <div style="margin-top:16px"><a class="btn ghost" style="display:inline-block;text-decoration:none" href="/">↺ Hacer otro pedido</a></div>
   </div>`;
@@ -1469,6 +1481,62 @@ function restart(){
 
 checkarRetornoPagoSafe();
 function checkarRetornoPagoSafe(){ try{ checarRetornoPago(); }catch(e){} }
+
+/* ---------- PANEL DE PEDIDOS (solo Disink con la llave) ---------- */
+if(STUDIO_KEY){
+  const b=document.createElement("button");
+  b.textContent="📋 Pedidos";
+  b.className="btn cyan";
+  b.style.cssText="position:fixed;top:14px;right:14px;z-index:50;padding:9px 16px";
+  b.onclick=abrirPanelPedidos;
+  document.body.appendChild(b);
+}
+async function abrirPanelPedidos(){
+  const main=document.querySelector("main");
+  main.innerHTML=`<div style="text-align:center;margin:50px auto"><div class="spinner"></div><p class="hint">Cargando pedidos…</p></div>`;
+  let pedidos=[];
+  try{
+    const r=await fetch("/api/order?studio="+encodeURIComponent(STUDIO_KEY));
+    const j=await r.json();
+    if(j && j.pedidos) pedidos=j.pedidos;
+    else throw new Error(j.error||"Error");
+  }catch(e){
+    main.innerHTML=`<div style="max-width:600px;margin:50px auto;text-align:center"><h2>No se pudieron cargar los pedidos</h2><p class="hint">${e.message}. Revisa que la base de datos (Supabase) esté configurada.</p><a class="btn ghost" href="/?studio=${encodeURIComponent(STUDIO_KEY)}">Volver</a></div>`;
+    return;
+  }
+  const box=(id,txt)=>`<textarea id="${id}" readonly style="width:100%;min-height:110px;background:#0f1117;border:1.5px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit;font-size:.74rem;line-height:1.5;resize:vertical"></textarea>
+    <button class="btn cyan" style="margin:6px 6px 0 0;padding:7px 13px" onclick="copyBox('${id}',this)">📋 Copiar</button>`;
+  let html=`<h1 style="margin:6px 0 4px">Pedidos pagados <span style="color:var(--muted);font-size:1rem">(${pedidos.length})</span></h1>
+    <p class="sub">Copia los prompts y pégalos en ChatGPT. <a href="/?studio=${encodeURIComponent(STUDIO_KEY)}" style="color:var(--cyan)">↺ Recargar</a></p>`;
+  if(!pedidos.length) html+=`<p class="hint">Aún no hay pedidos pagados.</p>`;
+  pedidos.forEach(p=>{
+    const d=p.data||{}, pr=p.prompts||{};
+    const fecha=(p.created_at||"").slice(0,16).replace("T"," ");
+    const idp="p"+p.id;
+    html+=`<div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <b style="color:var(--yellow)">Pedido #${p.id} · ${esc(p.paquete||"")}</b>
+        <span class="hint">${fecha}</span>
+      </div>
+      <div style="font-size:.85rem;margin:8px 0 12px;line-height:1.7">
+        <b>Alumno:</b> ${esc(d.nombre||"—")} · <b>Escuela:</b> ${esc(d.escuela||"—")} · <b>Grado:</b> ${esc(d.grado||"—")} <b>Grupo:</b> ${esc(d.grupo||"—")}<br>
+        <b>Maestro(a):</b> ${esc(d.maestro||"—")} · <b>Tel:</b> ${esc(d.tel||"—")} · <b>Tema:</b> ${esc(d.tema||"—")}<br>
+        <b>Materias:</b> ${esc((d.materias||[]).join(", ")||"—")}
+      </div>
+      <div><b style="font-size:.8rem">🖼️ Portada</b>${box(idp+"_por")}</div>
+      <div style="margin-top:10px"><b style="font-size:.8rem">📓 Materias</b>${box(idp+"_mat")}</div>
+      <div style="margin-top:10px"><b style="font-size:.8rem">✏️ Tiras</b>${box(idp+"_tir")}</div>
+      <div style="margin-top:10px"><b style="font-size:.8rem">🖨️ Plan 13×19</b>${box(idp+"_pla")}</div>
+    </div>`;
+  });
+  main.innerHTML=html;
+  pedidos.forEach(p=>{
+    const pr=p.prompts||{}; const idp="p"+p.id;
+    const set=(suf,v)=>{ const t=document.getElementById(idp+suf); if(t) t.value=v||""; };
+    set("_por",pr.portada); set("_mat",pr.materia); set("_tir",pr.tira); set("_pla",pr.plan);
+  });
+  window.scrollTo({top:0});
+}
 </script>
 </body>
 </html>
