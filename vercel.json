@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/generate.js": { "maxDuration": 60 },
+    "api/order.js": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/panel.html", "has": [{ "type": "host", "value": "panel.disinkcontrol.online" }] }
+  ]
+}
