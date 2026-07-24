@@ -259,6 +259,17 @@ const WHATSAPP = "5213241206466"; // ← tu número con código de país (verifi
 const MAX_IA_POR_DIA = 3;         // límite de generaciones IA por visitante
 const MAX_IA_REGRESO = 1;          // etiquetas escolares: 1 referencia (alta calidad)
 const CLIENTE_PUEDE_GENERAR = false; // 🔒 apagado: el cliente NO genera imágenes (se prende cuando Stripe gatee el pago). Disink (con llave) siempre puede.
+/* Precios configurables por Recepción (se leen de /api/config; respaldo local si aún no cargan) */
+let PRECIOS_CFG = {};
+try{ fetch("/api/config").then(r=>r.json()).then(j=>{ PRECIOS_CFG = j.precios || {}; }).catch(()=>{}); }catch(e){}
+const DEF_PRECIOS = { regreso:{"Básico · $80":80,"Premium · $130":130,"Único · $170":170}, stickers:{chico:120,mediano:180,grande:250} };
+function sizeKeyS(t){ t=(t||"").toLowerCase(); return t.includes("chico")?"chico":t.includes("mediano")?"mediano":t.includes("grande")?"grande":null; }
+function precioProducto(){
+  const P=PRECIOS_CFG;
+  if(state.product==="regreso"){ const paq=state.options.paquete; return (P.regreso&&P.regreso[paq]!=null)?P.regreso[paq]:DEF_PRECIOS.regreso[paq]; }
+  if(state.product==="stickers"){ const k=sizeKeyS(state.options.tam); if(!k) return null; return (P.stickers&&P.stickers[k]!=null)?P.stickers[k]:DEF_PRECIOS.stickers[k]; }
+  return null;
+}
 const STUDIO_KEY = new URLSearchParams(location.search).get("studio") || ""; // modo diseñador: ?studio=TUCLAVE revela el prompt para pegarlo en ChatGPT
 
 /* Los PROMPTS ya NO viven aquí: están ocultos en el servidor (api/generate.js).
@@ -275,6 +286,8 @@ const PRODUCTS = {
       {id:"tema", label:"Personaje o tema favorito", chips:["Dinosaurios","Unicornios","Fútbol","Espacio y planetas","Princesas","Superhéroes","Sirenas","Animalitos","Autos y carreras","Gamer / videojuegos","Anime","Flores y arcoíris","Otro"]}
     ],
     fields:[
+      {id:"cliente", label:"Tu nombre (quien hace el pedido) *", type:"text", ph:"Ej. María López"},
+      {id:"cliente_tel", label:"Tu WhatsApp para enviarte el boceto *", type:"text", ph:"Ej. 324 123 4567"},
       {id:"nombre", label:"Nombre completo del alumno *", type:"text", ph:"Ej. Elian Osmael Arce Guerrero"},
       {id:"escuela", label:"Escuela *", type:"text", ph:"Ej. Josefa O. de Domínguez"},
       {id:"grado", label:"Grado *", type:"text", ph:"Ej. 5"},
@@ -363,6 +376,8 @@ const PRODUCTS = {
       {id:"estilo", label:"Estilo del diseño", chips:["Moderno","Colorido","Minimalista","Juvenil"]}
     ],
     fields:[
+      {id:"cliente", label:"Tu nombre (quien hace el pedido) *", type:"text", ph:"Ej. María López"},
+      {id:"cliente_tel", label:"Tu WhatsApp para enviarte el boceto *", type:"text", ph:"Ej. 324 123 4567"},
       {id:"negocio", label:"Nombre del negocio o texto principal *", type:"text", ph:"Ej. Café La Nube"},
       {id:"giro", label:"¿Para qué es? *", type:"text", ph:"Ej. Etiqueta para vasos de café"},
       {id:"texto2", label:"Texto secundario", type:"text", ph:"Ej. Hecho con amor ☕ · @cafelanube"},
@@ -937,27 +952,32 @@ function setupResultActions(){
   const actions=document.getElementById("aiActions");
   const notice=document.getElementById("resultNotice");
   const wa=document.getElementById("waBtn");
-  const disink = false;  // La página pública NUNCA actúa como Disink; el panel está en /panel.html con login
-  const clientePuede = disink || CLIENTE_PUEDE_GENERAR;
-  if(state.product==="regreso"){
-    if(actions) actions.innerHTML = disink
-      ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🎨 Generar + obtener prompt (Disink 🔒)</button>`
-      : (CLIENTE_PUEDE_GENERAR
-          ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Ver mi diseño (referencia)</button>`
-          : `<button class="btn cyan" id="payBtn" onclick="pagarPaquete()">💳 Pagar mi paquete y hacer pedido</button>`);
-    if(notice) notice.innerHTML = disink
-      ? `<b>Modo Disink 🔒</b> — al generar obtienes la referencia y el <b>prompt</b> para pegar en ChatGPT. El prompt viene del servidor y solo se muestra con la llave; el cliente nunca lo ve.`
-      : `Al pagar tu paquete, nuestros <b>diseñadores</b> crean tu diseño en alta calidad y te enviamos el boceto por WhatsApp para aprobar antes de imprimir. El de arriba es solo un boceto ilustrativo.`;
-    if(wa){ wa.textContent="📲 Enviar mis datos por WhatsApp"; wa.style.display="none"; } // regreso: solo se paga; WhatsApp aparece tras el pago
+  const pagable = (state.product==="regreso" || state.product==="stickers");
+  if(pagable){
+    const precio = precioProducto();
+    if(actions) actions.innerHTML = (precio!=null)
+      ? `<button class="btn cyan" id="payBtn" onclick="pagarPedido()">💳 Pagar $${precio} y hacer pedido</button>`
+      : `<button class="btn cyan" onclick="cotizarWhatsApp()">📲 Cotizar por WhatsApp</button>`;
+    if(notice) notice.innerHTML = (precio!=null)
+      ? `Al pagar, nuestros <b>diseñadores</b> crean tu diseño en alta calidad y te enviamos el boceto por WhatsApp para aprobar antes de imprimir. El de arriba es solo un boceto ilustrativo.`
+      : `Para esta medida te damos precio por WhatsApp; mándanos tus datos y te cotizamos rapidísimo.`;
+    if(wa){ wa.style.display="none"; }
   } else {
-    if(actions) actions.innerHTML = clientePuede
-      ? `<button class="btn cyan" id="aiBtn" onclick="generateAI()">🤖 Generar propuesta con IA</button>`
-      : ``;
-    if(notice) notice.innerHTML = clientePuede
-      ? `Lo que ves es una <b>muestra con marca de agua</b>. Al confirmar tu pedido recibes el diseño final en alta calidad, listo para imprimir y sin marca de agua.`
-      : `Arma tu pedido y cotiza por WhatsApp. El diseño final lo preparamos nosotros al confirmar tu pedido.`;
-    if(wa){ wa.textContent="✅ Me gusta, cotizar por WhatsApp"; wa.style.display=""; }
+    if(actions) actions.innerHTML = ``;
+    if(notice) notice.innerHTML = `Arma tu pedido y cotiza por WhatsApp. El diseño lo preparamos al confirmar tu pedido.`;
+    if(wa){ wa.textContent="✅ Cotizar por WhatsApp"; wa.style.display=""; }
   }
+}
+/* Cotización directa por WhatsApp (medida sin precio fijo, u otros productos) */
+function cotizarWhatsApp(){
+  collectData();
+  const d=state.data,o=state.options,p=PRODUCTS[state.product];
+  const ops=Object.entries(o).filter(([k,v])=>v&&k!=="estiloCustom").map(([k,v])=>`${k}: ${v}`).join(" · ");
+  const contacto=d.cliente?`Soy ${d.cliente}${d.cliente_tel?" ("+d.cliente_tel+")":""}. `:"";
+  const msg=`¡Hola Disink Control! ${contacto}Quiero cotizar *${p.name}*.
+${ops}
+${d.negocio?("Texto: "+d.negocio):""}`;
+  window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
 /* Arma el prompt escolar (para pegar en ChatGPT) con los datos del cliente */
@@ -1405,20 +1425,20 @@ Quiero cotizar y dejar mi anticipo para que hagan mi diseño. 🙌`;
 }
 
 /* ---------- PAGO CON STRIPE ---------- */
-async function pagarPaquete(){
+async function pagarPedido(){
   collectData();
-  const paquete = state.options.paquete || "Básico · $80";
-  try{ localStorage.setItem("dc_order", JSON.stringify({product:state.product, options:state.options, data:state.data, colorCount:state.colorCount, colors:state.colors})); }catch(e){}
+  const refImgs = [state.logoDataUrl, ...(state.refDataUrls||[])].filter(Boolean).slice(0,3);
+  try{ localStorage.setItem("dc_order", JSON.stringify({product:state.product, options:state.options, data:state.data, colorCount:state.colorCount, colors:state.colors, refImgs})); }catch(e){}
   const btn = document.getElementById("payBtn");
   if(btn){ btn.disabled=true; btn.textContent="Redirigiendo a pago…"; }
   try{
-    const res = await fetch("/api/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ product:state.product, paquete }) });
+    const res = await fetch("/api/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ product:state.product, opts:state.options }) });
     const j = await res.json();
     if(!res.ok || j.error) throw new Error(j.error || "Error al iniciar el pago");
     location.href = j.url;
   }catch(e){
     alert("No se pudo iniciar el pago: "+e.message+"\n\nRevisa que STRIPE_SECRET_KEY esté configurada en Vercel.");
-    if(btn){ btn.disabled=false; btn.textContent="💳 Pagar mi paquete y hacer pedido"; }
+    if(btn){ btn.disabled=false; btn.textContent="💳 Pagar y hacer pedido"; }
   }
 }
 
@@ -1453,7 +1473,11 @@ function mostrarConfirmacion(order, sid, folio){
   const materias = (d.materiasArr||[]);
   const tema = (o.tema||"").replace(/^Otro:\s*/i,"");
   const folioTxt = folio ? `Pedido #${folio}` : `Ref. ${(sid||"").slice(-8)}`;
-  const msg = `¡Hola Disink Control! Ya PAGUÉ mi paquete de etiquetas escolares ✅\n${folioTxt}\n*${o.paquete||""}*\nTema: ${tema}\nNombre: ${d.nombre||"—"}\nEscuela: ${d.escuela||"—"}  Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}\nMaestro(a): ${d.maestro||"—"}  Tel: ${d.tel||"—"}\nMaterias (${materias.length}): ${materias.join(", ")||"—"}\nQuedo al pendiente de mi diseño. ¡Gracias!`;
+  const esStk = order && order.product==="stickers";
+  const resumen = esStk
+    ? `*Stickers · ${o.tam||""}* (${o.forma||""})\nTexto: ${d.negocio||"—"}${d.texto2?" · "+d.texto2:""}\nUso: ${d.giro||"—"}`
+    : `*${o.paquete||""}*\nTema: ${tema}\nAlumno: ${d.nombre||"—"}\nEscuela: ${d.escuela||"—"}  Grado: ${d.grado||"—"}  Grupo: ${d.grupo||"—"}\nMaestro(a): ${d.maestro||"—"}  Tel: ${d.tel||"—"}\nMaterias (${materias.length}): ${materias.join(", ")||"—"}`;
+  const msg = `¡Hola Disink Control! Ya PAGUÉ mi pedido ✅\n${folioTxt}\n${resumen}\nQuedo al pendiente de mi diseño. ¡Gracias!`;
   const wa = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
   main.innerHTML = `<div style="max-width:560px;margin:40px auto;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:34px 26px">
     <div style="font-size:3rem">✅</div>

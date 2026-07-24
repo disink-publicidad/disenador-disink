@@ -3,145 +3,211 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Disink · Pedidos</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<title>Panel Disink · Recepción</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#12141a;--panel:#1c1f28;--panel2:#242835;--magenta:#e91e8c;--cyan:#00c2e0;--yellow:#ffc93c;--text:#f2f3f7;--muted:#9aa0b4;--border:#333849}
+:root{--ink:#0e1016;--panel:#181b24;--panel2:#20242f;--magenta:#e91e8c;--cyan:#00c2e0;--yellow:#ffc93c;--green:#39d98a;--text:#f2f3f7;--muted:#9aa0b4;--border:#2b3040}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--ink);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
-header{padding:16px 5vw;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-.logo{font-weight:800;font-size:1.2rem}.logo span{color:var(--magenta)}.logo em{color:var(--cyan);font-style:normal}
-main{max-width:920px;margin:0 auto;padding:26px 5vw 80px}
-.btn{padding:11px 20px;border-radius:11px;border:none;font-family:inherit;font-weight:700;font-size:.9rem;cursor:pointer;transition:.2s}
-.btn.primary{background:linear-gradient(90deg,var(--magenta),#ff5db1);color:#fff}
+body{background:var(--ink);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh;overflow-x:hidden;position:relative}
+body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(90px);opacity:.18;z-index:0;pointer-events:none}
+body::before{width:460px;height:460px;background:var(--magenta);top:-160px;left:-120px;animation:f1 14s ease-in-out infinite}
+body::after{width:420px;height:420px;background:var(--cyan);bottom:-160px;right:-120px;animation:f2 16s ease-in-out infinite}
+@keyframes f1{50%{transform:translate(60px,50px)}}@keyframes f2{50%{transform:translate(-50px,-40px)}}
+header{position:relative;z-index:2;padding:14px 5vw;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.logo{font-weight:800;font-size:1.1rem}.logo span{color:var(--magenta)}.logo em{color:var(--cyan);font-style:normal}
+main{position:relative;z-index:1;max-width:940px;margin:0 auto;padding:22px 5vw 90px}
+.btn{padding:11px 18px;border-radius:11px;border:none;font-family:inherit;font-weight:700;font-size:.86rem;cursor:pointer;transition:filter .18s,transform .12s,box-shadow .2s;display:inline-flex;align-items:center;gap:7px;justify-content:center}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:linear-gradient(90deg,var(--magenta),#ff5db1);color:#fff;box-shadow:0 6px 18px rgba(233,30,140,.32)}
 .btn.cyan{background:linear-gradient(90deg,#00a5c4,var(--cyan));color:#04252c}
+.btn.green{background:linear-gradient(90deg,#1fae6d,var(--green));color:#062617}
 .btn.ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
-.btn:hover{filter:brightness(1.1)}
-input{background:var(--panel);border:1.5px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-family:inherit;font-size:1rem;outline:none;width:100%}
-input:focus{border-color:var(--cyan)}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
+.btn.ghost:hover{color:var(--text);border-color:var(--muted)}
+.btn.primary:hover,.btn.cyan:hover,.btn.green:hover{filter:brightness(1.1)}
+input,textarea{background:var(--panel2);border:1.5px solid var(--border);border-radius:11px;padding:12px 14px;color:var(--text);font-family:'Poppins',sans-serif;font-size:.95rem;outline:none;width:100%;transition:border-color .2s,box-shadow .2s}
+input:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,194,224,.13)}
+textarea{min-height:118px;background:#0b0d13;color:#dfe3ee;font-size:.75rem;line-height:1.55;resize:vertical}
 .hint{color:var(--muted);font-size:.85rem}
-textarea{width:100%;min-height:120px;background:#0f1117;border:1.5px solid var(--border);border-radius:8px;padding:11px;color:var(--text);font-family:inherit;font-size:.76rem;line-height:1.5;resize:vertical}
-.err{color:#ffb3d6;font-size:.85rem;margin-top:10px;display:none}
-.spinner{width:34px;height:34px;border:4px solid var(--border);border-top-color:var(--magenta);border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
+.spinner{width:34px;height:34px;border:4px solid var(--border);border-top-color:var(--magenta);border-radius:50%;animation:spin .8s linear infinite;margin:40px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
+#login{max-width:390px;margin:8vh auto;padding:36px 30px;background:linear-gradient(180deg,var(--panel),#14161e);border:1px solid var(--border);border-radius:20px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5);animation:pop .5s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes pop{from{opacity:0;transform:translateY(18px) scale(.96)}}
+#login.shake{animation:shake .4s}@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.lock{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--magenta),var(--cyan));display:grid;place-items:center;margin:0 auto 14px;font-size:1.6rem;box-shadow:0 10px 26px rgba(233,30,140,.4)}
+.err{color:#ff9ecb;font-size:.85rem;margin-top:12px;display:none}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.tab{padding:9px 16px;border-radius:11px;background:var(--panel);border:1.5px solid var(--border);color:var(--muted);font-weight:700;font-size:.85rem;cursor:pointer;transition:.18s}
+.tab.on{border-color:var(--magenta);color:var(--text);background:#221a26}
+.pedido,.card{background:linear-gradient(180deg,var(--panel),#141720);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:18px}
+.pedido{opacity:0;transform:translateY(20px);animation:up .55s cubic-bezier(.2,.8,.3,1) forwards;transition:box-shadow .25s,border-color .25s}
+.pedido:hover{border-color:var(--cyan);box-shadow:0 14px 40px rgba(0,194,224,.10)}
+@keyframes up{to{opacity:1;transform:none}}
+.badge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(90deg,var(--magenta),#ff5db1);color:#fff;font-weight:800;font-size:.82rem;padding:5px 13px;border-radius:99px;box-shadow:0 4px 14px rgba(233,30,140,.4)}
+.chip{display:inline-block;background:var(--panel2);border:1px solid var(--border);border-radius:99px;padding:3px 11px;font-size:.72rem;color:var(--muted)}
+.contacto{background:rgba(0,194,224,.07);border:1px solid rgba(0,194,224,.3);border-radius:12px;padding:12px 14px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.datos{font-size:.84rem;line-height:1.75;color:#c9cee0;margin:6px 0 12px}.datos b{color:var(--text)}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.thumbs img{height:70px;width:70px;object-fit:cover;border-radius:10px;border:2px solid var(--border);cursor:zoom-in;transition:transform .18s,border-color .18s}
+.thumbs img:hover{transform:scale(1.06);border-color:var(--cyan)}
+.pblock{margin-top:12px}.pblock .lbl{font-size:.8rem;font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.tools{margin-top:7px;display:flex;gap:7px;flex-wrap:wrap}.tools .btn{padding:7px 13px;font-size:.8rem}
+.frow{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}.frow label{min-width:150px;font-size:.88rem;color:var(--muted)}.frow input{max-width:140px}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:99;place-items:center;padding:30px;cursor:zoom-out}#lb img{max-width:92vw;max-height:88vh;border-radius:12px}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);color:#062617;font-weight:700;padding:11px 20px;border-radius:12px;z-index:100;opacity:0;transition:.3s;box-shadow:0 10px 30px rgba(0,0,0,.4);pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">D<em>is</em>ink <span>Control</span> · Panel</div>
+  <div class="logo">D<em>is</em>ink <span>Control</span> · Recepción</div>
   <button class="btn ghost" id="salir" style="display:none" onclick="cerrarSesion()">Cerrar sesión</button>
 </header>
 <main>
-  <!-- LOGIN -->
-  <div id="login" style="max-width:380px;margin:60px auto;text-align:center">
-    <h1 style="font-size:1.5rem;margin-bottom:6px">Acceso del equipo</h1>
-    <p class="hint" style="margin-bottom:22px">Solo diseño y recepción. Ingresa la contraseña.</p>
-    <input type="password" id="pass" placeholder="Contraseña" onkeydown="if(event.key==='Enter')entrar()">
-    <button class="btn primary" style="width:100%;margin-top:14px" onclick="entrar()">Entrar</button>
+  <div id="login">
+    <div class="lock">🔒</div>
+    <h1 style="font-size:1.4rem;margin-bottom:4px">Acceso del equipo</h1>
+    <p class="hint" style="margin-bottom:20px">Solo diseño y recepción.</p>
+    <input type="password" id="pass" placeholder="Contraseña" onkeydown="if(event.key==='Enter')entrar()" autocomplete="off">
+    <button class="btn primary" style="width:100%;margin-top:14px" onclick="entrar()">Entrar →</button>
     <p class="err" id="err">Contraseña incorrecta.</p>
   </div>
-  <!-- PANEL -->
-  <div id="panel" style="display:none"></div>
+  <div id="app" style="display:none">
+    <div class="nav">
+      <div class="tab on" data-v="pedidos" onclick="ir('pedidos')">📦 Pedidos</div>
+      <div class="tab" data-v="precios" onclick="ir('precios')">⚙️ Precios</div>
+      <div class="tab" data-v="prompts" onclick="ir('prompts')">📝 Prompts</div>
+    </div>
+    <div id="vista"></div>
+  </div>
 </main>
+<div id="lb" onclick="this.style.display='none'"><img id="lbimg" alt="referencia"></div>
+<div id="toast"></div>
 
 <script>
-const KEYNAME = "dc_panel_pass";
-function getPass(){ try{ return sessionStorage.getItem(KEYNAME)||""; }catch(e){ return ""; } }
-function entrar(){
-  const p = document.getElementById("pass").value.trim();
-  if(!p) return;
-  try{ sessionStorage.setItem(KEYNAME, p); }catch(e){}
-  cargar();
+const KEY="dc_panel_pass";
+const gp=()=>{try{return sessionStorage.getItem(KEY)||""}catch(e){return""}};
+function esc(s){return (s||"").toString().replace(/</g,"&lt;").replace(/"/g,"&quot;")}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1600)}
+function entrar(){const p=document.getElementById("pass").value.trim();if(!p)return;try{sessionStorage.setItem(KEY,p)}catch(e){}abrir()}
+function cerrarSesion(){try{sessionStorage.removeItem(KEY)}catch(e){}document.getElementById("app").style.display="none";document.getElementById("login").style.display="";document.getElementById("salir").style.display="none";document.getElementById("pass").value=""}
+async function abrir(){
+  const pass=gp();if(!pass){cerrarSesion();return}
+  // valida contraseña con una llamada
+  const r=await fetch("/api/order",{headers:{"x-studio-key":pass}}).catch(()=>null);
+  if(!r || r.status===403){const l=document.getElementById("login");l.classList.add("shake");setTimeout(()=>l.classList.remove("shake"),450);document.getElementById("err").style.display="block";try{sessionStorage.removeItem(KEY)}catch(e){}return}
+  const j=await r.json();PEDIDOS=(j&&j.pedidos)||[];
+  document.getElementById("login").style.display="none";document.getElementById("app").style.display="";document.getElementById("salir").style.display="";
+  ir("pedidos");
 }
-function cerrarSesion(){
-  try{ sessionStorage.removeItem(KEYNAME); }catch(e){}
-  document.getElementById("panel").style.display="none";
-  document.getElementById("panel").innerHTML="";
-  document.getElementById("login").style.display="";
-  document.getElementById("salir").style.display="none";
-  document.getElementById("pass").value="";
-}
-function copyBox(id,btn){
-  const t=document.getElementById(id); if(!t) return;
-  const done=()=>{ if(btn){const o=btn.textContent;btn.textContent="✅ Copiado";setTimeout(()=>btn.textContent=o,1500);} };
-  if(navigator.clipboard){ navigator.clipboard.writeText(t.value).then(done,done); } else { t.select(); document.execCommand("copy"); done(); }
-}
-function downloadBox(id,fname){
-  const t=document.getElementById(id); if(!t) return;
-  const blob=new Blob([t.value],{type:"text/plain;charset=utf-8"});
-  const url=URL.createObjectURL(blob); const a=document.createElement("a");
-  a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);
-}
-function esc(s){ return (s||"").toString().replace(/</g,"&lt;"); }
+function ir(v){document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v));if(v==="pedidos")vistaPedidos();if(v==="precios")vistaPrecios();if(v==="prompts")vistaPrompts()}
+function copyBox(id,btn){const t=document.getElementById(id);if(!t)return;const go=()=>{toast("✓ Copiado");if(btn){const o=btn.innerHTML;btn.innerHTML="✅ Copiado";setTimeout(()=>btn.innerHTML=o,1400)}};navigator.clipboard?navigator.clipboard.writeText(t.value).then(go,go):(t.select(),document.execCommand("copy"),go())}
+function dl(txt,fn){const b=new Blob([txt],{type:"text/plain;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}
+function downloadBox(id,fn){const t=document.getElementById(id);if(t)dl(t.value,fn)}
+function lightbox(src){document.getElementById("lbimg").src=src;document.getElementById("lb").style.display="grid"}
+function safe(s){return (s||"").toString().normalize("NFD").replace(/[^\w\s-]/g,"").trim().replace(/\s+/g,"_")||"cliente"}
+function waLink(tel,nombre){let d=(tel||"").replace(/\D/g,"");if(d.length===10)d="52"+d;const msg=`¡Hola ${nombre||""}! 🖨️ Soy de *Disink Publicidad*. Tu boceto ya está listo, te lo comparto para tu aprobación 👇`;return d?`https://wa.me/${d}?text=${encodeURIComponent(msg)}`:null}
 
-async function cargar(){
-  const pass = getPass();
-  if(!pass){ cerrarSesion(); return; }
-  const login=document.getElementById("login"), panel=document.getElementById("panel");
-  login.style.display="none";
-  panel.style.display="";
-  document.getElementById("salir").style.display="";
-  panel.innerHTML=`<div class="spinner"></div><p class="hint" style="text-align:center">Cargando pedidos…</p>`;
-  let pedidos=[];
-  try{
-    const r = await fetch("/api/order", { headers: { "x-studio-key": pass } });
-    if(r.status===403){ // contraseña incorrecta
-      login.style.display=""; panel.style.display="none"; document.getElementById("salir").style.display="none";
-      document.getElementById("err").style.display="block";
-      try{ sessionStorage.removeItem(KEYNAME); }catch(e){}
-      return;
+/* ---------------- PEDIDOS ---------------- */
+let PEDIDOS=[];
+async function vistaPedidos(){
+  const V=document.getElementById("vista");
+  V.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+    <h1 style="font-size:1.5rem">Pedidos pagados <span style="color:var(--muted);font-size:1rem">(${PEDIDOS.length})</span></h1>
+    <button class="btn cyan" onclick="recargar()">↺ Recargar</button></div>
+    <p class="hint" style="margin-bottom:18px">Copia cada prompt y pégalo en ChatGPT. Contacta al cliente para enviarle su boceto.</p>
+    <div id="lista"></div>`;
+  const L=document.getElementById("lista");
+  if(!PEDIDOS.length){L.innerHTML=`<div style="text-align:center;padding:50px 0;color:var(--muted)">🗂️<br><br>Aún no hay pedidos pagados.</div>`;return}
+  const box=(id,lbl,icon)=>`<div class="pblock"><div class="lbl">${icon} ${lbl}</div><textarea id="${id}" readonly></textarea>
+    <div class="tools"><button class="btn cyan" onclick="copyBox('${id}',this)">📋 Copiar</button>
+    <button class="btn ghost" onclick="downloadBox('${id}','${id}.txt')">📄 .txt</button></div></div>`;
+  let html="";
+  PEDIDOS.forEach((p,i)=>{
+    const d=p.data||{},idp="p"+p.id,fecha=(p.created_at||"").slice(0,16).replace("T"," ");
+    const prod=d.producto||"regreso";
+    const wa=waLink(d.cliente_tel,d.cliente);
+    const imgs=(d.refImgs||[]).filter(Boolean);
+    let datos, prompts;
+    if(prod==="stickers"){
+      datos=`<b>🏷️ Sticker:</b> ${esc(d.negocio||"—")} · <b>Forma:</b> ${esc(d.forma||"—")} · <b>Tamaño:</b> ${esc(d.tam||"—")} · <b>Estilo:</b> ${esc(d.estilo||"—")}<br><b>Uso:</b> ${esc(d.giro||"—")}${d.texto2?" · <b>Texto 2:</b> "+esc(d.texto2):""}`;
+      prompts=box(idp+"_stk","Diseño del sticker","🏷️")+box(idp+"_pla","Impresión","🖨️");
+    }else{
+      datos=`<b>🎒 Alumno:</b> ${esc(d.nombre||"—")} · <b>Escuela:</b> ${esc(d.escuela||"—")}<br><b>Grado:</b> ${esc(d.grado||"—")} <b>Grupo:</b> ${esc(d.grupo||"—")} · <b>Maestro(a):</b> ${esc(d.maestro||"—")} · <b>Tel.seg:</b> ${esc(d.tel||"—")}<br><b>Tema:</b> ${esc(d.tema||"—")} · <b>Materias:</b> ${esc((d.materias||[]).join(", ")||"—")}`;
+      prompts=box(idp+"_por","Portada","🖼️")+box(idp+"_mat","Materias (9×5)","📓")+box(idp+"_tir","Tiras (5×1)","✏️")+box(idp+"_pla",'Plan 13×19"',"🖨️");
     }
-    const j = await r.json();
-    if(j && j.pedidos) pedidos = j.pedidos; else throw new Error(j.error||"Error");
-  }catch(e){
-    panel.innerHTML=`<div style="text-align:center;margin:40px auto"><h2>No se pudieron cargar los pedidos</h2><p class="hint">${esc(e.message)}</p><button class="btn ghost" style="margin-top:12px" onclick="cargar()">Reintentar</button></div>`;
-    return;
-  }
-  render(pedidos);
-}
-
-function render(pedidos){
-  const panel=document.getElementById("panel");
-  const box=(id)=>`<textarea id="${id}" readonly></textarea>
-    <button class="btn cyan" style="margin:6px 6px 0 0;padding:7px 13px" onclick="copyBox('${id}',this)">📋 Copiar</button>
-    <button class="btn ghost" style="margin:6px 0 0 0;padding:7px 13px" onclick="downloadBox('${id}','${id}.txt')">📄 .txt</button>`;
-  let html=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
-      <h1 style="font-size:1.5rem">Pedidos pagados <span style="color:var(--muted);font-size:1rem">(${pedidos.length})</span></h1>
-      <button class="btn cyan" style="padding:8px 16px" onclick="cargar()">↺ Recargar</button>
-    </div>
-    <p class="hint" style="margin-bottom:18px">Copia cada prompt y pégalo en ChatGPT para generar el arte.</p>`;
-  if(!pedidos.length) html+=`<p class="hint">Aún no hay pedidos pagados.</p>`;
-  pedidos.forEach(p=>{
-    const d=p.data||{}, idp="p"+p.id, fecha=(p.created_at||"").slice(0,16).replace("T"," ");
-    html+=`<div class="card">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <b style="color:var(--yellow)">Pedido #${p.id} · ${esc(p.paquete||"")}</b>
-        <span class="hint">${fecha}</span>
-      </div>
-      <div style="font-size:.85rem;margin:8px 0 12px;line-height:1.7">
-        <b>Alumno:</b> ${esc(d.nombre||"—")} · <b>Escuela:</b> ${esc(d.escuela||"—")} · <b>Grado:</b> ${esc(d.grado||"—")} <b>Grupo:</b> ${esc(d.grupo||"—")}<br>
-        <b>Maestro(a):</b> ${esc(d.maestro||"—")} · <b>Tel:</b> ${esc(d.tel||"—")} · <b>Tema:</b> ${esc(d.tema||"—")}<br>
-        <b>Materias:</b> ${esc((d.materias||[]).join(", ")||"—")}
-      </div>
-      <div><b style="font-size:.82rem">🖼️ Portada</b>${box(idp+"_por")}</div>
-      <div style="margin-top:10px"><b style="font-size:.82rem">📓 Materias</b>${box(idp+"_mat")}</div>
-      <div style="margin-top:10px"><b style="font-size:.82rem">✏️ Tiras</b>${box(idp+"_tir")}</div>
-      <div style="margin-top:10px"><b style="font-size:.82rem">🖨️ Plan 13×19"</b>${box(idp+"_pla")}</div>
+    html+=`<div class="pedido" style="animation-delay:${Math.min(i*70,600)}ms">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <span class="badge">📦 Pedido #${p.id}</span><span class="chip">${esc(p.paquete||"")}</span><span class="hint" style="margin-left:auto">${fecha}</span></div>
+      <div class="contacto"><div style="font-size:.9rem"><b style="color:var(--cyan)">👤 ${esc(d.cliente||"—")}</b><br><span class="hint">📱 ${esc(d.cliente_tel||"—")}</span></div>
+        ${wa?`<a class="btn green" href="${wa}" target="_blank" style="text-decoration:none">📲 Enviar boceto</a>`:""}</div>
+      ${imgs.length?`<div class="lbl" style="font-size:.8rem;font-weight:700">🖼️ Referencia del cliente</div><div class="thumbs">${imgs.map(u=>`<img src="${u}" onclick="lightbox('${u}')" alt="ref">`).join("")}</div>`:""}
+      <div class="datos">${datos}</div>${prompts}
+      <div class="tools" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px"><button class="btn primary" onclick="descargarPedido(${p.id})">⬇️ Descargar pedido completo</button></div>
     </div>`;
   });
-  panel.innerHTML=html;
-  pedidos.forEach(p=>{
-    const pr=p.prompts||{}, idp="p"+p.id;
-    const set=(suf,v)=>{ const t=document.getElementById(idp+suf); if(t) t.value=v||""; };
-    set("_por",pr.portada); set("_mat",pr.materia); set("_tir",pr.tira); set("_pla",pr.plan);
-  });
-  window.scrollTo({top:0});
+  L.innerHTML=html;
+  PEDIDOS.forEach(p=>{const pr=p.prompts||{},idp="p"+p.id,prod=(p.data||{}).producto||"regreso";const set=(s,v)=>{const t=document.getElementById(idp+s);if(t)t.value=v||""};
+    if(prod==="stickers"){set("_stk",pr.sticker);set("_pla",pr.plan)}else{set("_por",pr.portada);set("_mat",pr.materia);set("_tir",pr.tira);set("_pla",pr.plan)}});
+}
+async function recargar(){const r=await fetch("/api/order",{headers:{"x-studio-key":gp()}});const j=await r.json();PEDIDOS=(j&&j.pedidos)||[];vistaPedidos();toast("✓ Actualizado")}
+function descargarPedido(id){
+  const p=PEDIDOS.find(x=>x.id===id);if(!p)return;const d=p.data||{},pr=p.prompts||{},fecha=(p.created_at||"").slice(0,16).replace("T"," "),L="═".repeat(46),prod=d.producto||"regreso";
+  let cuerpo;
+  if(prod==="stickers"){
+    cuerpo=`── STICKER ──\nTexto:  ${d.negocio||"—"}\nForma:  ${d.forma||"—"}\nTamaño: ${d.tam||"—"}\nEstilo: ${d.estilo||"—"}\nUso:    ${d.giro||"—"}\nTexto2: ${d.texto2||"—"}\n\n${L}\nPROMPT · STICKER\n${L}\n${pr.sticker||""}\n\n${L}\nIMPRESIÓN\n${L}\n${pr.plan||""}`;
+  }else{
+    cuerpo=`── ALUMNO ──\nNombre:   ${d.nombre||"—"}\nEscuela:  ${d.escuela||"—"}\nGrado:    ${d.grado||"—"}   Grupo: ${d.grupo||"—"}\nMaestro:  ${d.maestro||"—"}\nTel.seg:  ${d.tel||"—"}\nTema:     ${d.tema||"—"}\nMaterias: ${(d.materias||[]).join(", ")||"—"}\n\n${L}\nPROMPT · PORTADA\n${L}\n${pr.portada||""}\n\n${L}\nPROMPT · MATERIAS\n${L}\n${pr.materia||""}\n\n${L}\nPROMPT · TIRAS\n${L}\n${pr.tira||""}\n\n${L}\nPLAN DE IMPRESIÓN\n${L}\n${pr.plan||""}`;
+  }
+  const txt=`${L}\n   PEDIDO #${id} · DISINK PUBLICIDAD\n${L}\nFecha:    ${fecha}\nProducto: ${p.paquete||""}\n\n── CONTACTO (enviar boceto) ──\nNombre:   ${d.cliente||"—"}\nWhatsApp: ${d.cliente_tel||"—"}\n\n${cuerpo}\n`;
+  dl(txt,`pedido_${id}_${safe(d.cliente)}.txt`);toast("✓ Pedido descargado")
 }
 
-// Si ya había sesión abierta en esta pestaña, entra directo
-if(getPass()) cargar();
+/* ---------------- PRECIOS ---------------- */
+let CFG={precios:{},prompts:{}};
+async function cargarCfg(){const r=await fetch("/api/config",{headers:{"x-studio-key":gp()}});CFG=await r.json();CFG.precios=CFG.precios||{};CFG.prompts=CFG.prompts||{}}
+async function vistaPrecios(){
+  const V=document.getElementById("vista");V.innerHTML=`<div class="spinner"></div>`;
+  await cargarCfg();
+  const P=CFG.precios, reg=P.regreso||{}, stk=P.stickers||{};
+  const row=(lbl,id,val)=>`<div class="frow"><label>${lbl}</label><span style="color:var(--muted)">$</span><input type="number" id="${id}" value="${val!=null?val:""}" placeholder="—"> <span class="hint">MXN</span></div>`;
+  V.innerHTML=`<h1 style="font-size:1.5rem;margin-bottom:4px">⚙️ Precios</h1>
+    <p class="hint" style="margin-bottom:18px">Configura los costos. El cliente los ve al momento y el sistema cobra ese monto.</p>
+    <div class="card"><h3 style="margin-bottom:12px">🎒 Etiquetas escolares (paquetes)</h3>
+      ${row("Básico","pr_reg_b",reg["Básico · $80"])}${row("Premium","pr_reg_p",reg["Premium · $130"])}${row("Único","pr_reg_u",reg["Único · $170"])}</div>
+    <div class="card"><h3 style="margin-bottom:12px">🏷️ Stickers (por tamaño)</h3>
+      ${row("Chico (5 cm)","pr_stk_c",stk.chico)}${row("Mediano (10 cm)","pr_stk_m",stk.mediano)}${row("Grande (+20 cm)","pr_stk_g",stk.grande)}
+      <p class="hint">"Otra medida" se cotiza por WhatsApp.</p></div>
+    <button class="btn primary" onclick="guardarPrecios()">💾 Guardar precios</button>`;
+}
+async function guardarPrecios(){
+  const v=id=>{const e=document.getElementById(id);const n=e&&e.value!==""?Number(e.value):null;return (n!=null&&!isNaN(n))?n:null};
+  const precios={ regreso:{"Básico · $80":v("pr_reg_b"),"Premium · $130":v("pr_reg_p"),"Único · $170":v("pr_reg_u")},
+    stickers:{chico:v("pr_stk_c"),mediano:v("pr_stk_m"),grande:v("pr_stk_g")} };
+  const r=await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json","x-studio-key":gp()},body:JSON.stringify({precios})});
+  if(r.ok){toast("✓ Precios guardados")}else{toast("Error al guardar")}
+}
+
+/* ---------------- PROMPTS ---------------- */
+async function vistaPrompts(){
+  const V=document.getElementById("vista");V.innerHTML=`<div class="spinner"></div>`;
+  await cargarCfg();
+  const pr=CFG.prompts||{};
+  V.innerHTML=`<h1 style="font-size:1.5rem;margin-bottom:4px">📝 Prompts maestros</h1>
+    <p class="hint" style="margin-bottom:8px">Plantilla base de cada producto. Usa variables entre llaves; se rellenan con los datos del cliente. Si lo dejas vacío, se usa el prompt por defecto.</p>
+    <div class="card"><h3 style="margin-bottom:6px">🏷️ Stickers</h3>
+      <p class="hint" style="margin-bottom:8px">Variables: {{tam}} {{forma}} {{troquel}} {{estilo}} {{texto}} {{texto2}} {{giro}}</p>
+      <textarea id="pt_stk" style="min-height:200px" placeholder="(vacío = prompt por defecto)">${esc(pr.stickers||"")}</textarea></div>
+    <button class="btn primary" onclick="guardarPrompts()">💾 Guardar prompts</button>`;
+}
+async function guardarPrompts(){
+  const prompts={ stickers:(document.getElementById("pt_stk").value||"").trim() };
+  const r=await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json","x-studio-key":gp()},body:JSON.stringify({prompts})});
+  if(r.ok){toast("✓ Prompts guardados")}else{toast("Error al guardar")}
+}
+
+if(gp())abrir();
 </script>
 </body>
 </html>
