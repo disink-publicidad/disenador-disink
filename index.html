@@ -937,7 +937,7 @@ function setupResultActions(){
   const actions=document.getElementById("aiActions");
   const notice=document.getElementById("resultNotice");
   const wa=document.getElementById("waBtn");
-  const disink = !!STUDIO_KEY;                       // Disink (con llave) siempre puede generar
+  const disink = false;  // La página pública NUNCA actúa como Disink; el panel está en /panel.html con login
   const clientePuede = disink || CLIENTE_PUEDE_GENERAR;
   if(state.product==="regreso"){
     if(actions) actions.innerHTML = disink
@@ -1483,14 +1483,9 @@ checkarRetornoPagoSafe();
 function checkarRetornoPagoSafe(){ try{ checarRetornoPago(); }catch(e){} }
 
 /* ---------- PANEL DE PEDIDOS (solo Disink con la llave) ---------- */
-if(STUDIO_KEY){
-  const b=document.createElement("button");
-  b.textContent="📋 Pedidos";
-  b.className="btn cyan";
-  b.style.cssText="position:fixed;top:14px;right:14px;z-index:50;padding:9px 16px";
-  b.onclick=abrirPanelPedidos;
-  document.body.appendChild(b);
-}
+/* El panel de pedidos vive en una PÁGINA APARTE con login: /panel.html
+   Así el equipo entra con contraseña y no queda ninguna entrada al panel
+   (ni la llave) en la página pública. */
 async function abrirPanelPedidos(){
   const main=document.querySelector("main");
   main.innerHTML=`<div style="text-align:center;margin:50px auto"><div class="spinner"></div><p class="hint">Cargando pedidos…</p></div>`;
