@@ -89,7 +89,7 @@ export default async function handler(req, res){
 
   // ---- LISTA de pedidos (solo Disink con la llave) ----
   if(req.method === "GET"){
-    const studio = req.query.studio;
+    const studio = req.query.studio || req.headers["x-studio-key"]; // acepta la clave por header (no queda en la URL)
     if(!process.env.STUDIO_KEY || studio !== process.env.STUDIO_KEY)
       return res.status(403).json({ error:"No autorizado" });
     const { ok, json } = await sb("GET", "pedidos?select=*&order=created_at.desc&limit=100");
